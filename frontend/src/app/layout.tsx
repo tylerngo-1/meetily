@@ -15,6 +15,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { RecordingStateProvider } from '@/contexts/RecordingStateContext'
 import { OllamaDownloadProvider } from '@/contexts/OllamaDownloadContext'
 import { TranscriptProvider } from '@/contexts/TranscriptContext'
+import { MeetingDraftProvider } from '@/contexts/MeetingDraftContext'
 import { ConfigProvider, useConfig } from '@/contexts/ConfigContext'
 import { OnboardingProvider } from '@/contexts/OnboardingContext'
 import { OnboardingFlow } from '@/components/onboarding'
@@ -241,6 +242,7 @@ export default function RootLayout({
                   <OnboardingProvider>
                     <UpdateCheckProvider>
                       <SidebarProvider>
+                        <MeetingDraftProvider>
                         <TooltipProvider>
                           <RecordingPostProcessingProvider>
                             <ImportDialogProvider onOpen={handleOpenImportDialog}>
@@ -266,6 +268,7 @@ export default function RootLayout({
                             </ImportDialogProvider>
                           </RecordingPostProcessingProvider>
                         </TooltipProvider>
+                        </MeetingDraftProvider>
                       </SidebarProvider>
                     </UpdateCheckProvider>
                   </OnboardingProvider>

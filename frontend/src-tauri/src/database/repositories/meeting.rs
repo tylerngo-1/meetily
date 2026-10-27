@@ -165,6 +165,7 @@ impl MeetingsRepository {
         Ok((transcripts, total.0))
     }
 
+    /// User-initiated rename. Marks the title as user-set so automatic renames skip it.
     pub async fn update_meeting_title(
         pool: &SqlitePool,
         meeting_id: &str,
@@ -182,7 +183,7 @@ impl MeetingsRepository {
         let now = Utc::now().naive_utc();
 
         let rows_affected =
-            sqlx::query("UPDATE meetings SET title = ?, updated_at = ? WHERE id = ?")
+            sqlx::query("UPDATE meetings SET title = ?, updated_at = ?, title_user_set = 1 WHERE id = ?")
                 .bind(new_title)
                 .bind(now)
                 .bind(meeting_id)
@@ -196,6 +197,7 @@ impl MeetingsRepository {
         Ok(true)
     }
 
+    /// Automatic rename (e.g. from summary generation). Skipped when the user has set the title.
     pub async fn update_meeting_name(
         pool: &SqlitePool,
         meeting_id: &str,
@@ -205,17 +207,18 @@ impl MeetingsRepository {
         let now = Utc::now();
 
         // Update meetings table
-        let meeting_update =
-            sqlx::query("UPDATE meetings SET title = ?, updated_at = ? WHERE id = ?")
-                .bind(new_title)
-                .bind(now)
-                .bind(meeting_id)
-                .execute(&mut *transaction)
-                .await?;
+        let meeting_update = sqlx::query(
+            "UPDATE meetings SET title = ?, updated_at = ? WHERE id = ? AND title_user_set = 0",
+        )
+        .bind(new_title)
+        .bind(now)
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
 
         if meeting_update.rows_affected() == 0 {
             transaction.rollback().await?;
-            return Ok(false); // Meeting not found
+            return Ok(false); // Meeting not found or title set by the user
         }
 
         // Update transcript_chunks table

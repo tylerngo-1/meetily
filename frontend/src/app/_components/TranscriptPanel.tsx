@@ -10,6 +10,7 @@ import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { ModalType } from '@/hooks/useModalState';
 import { useIsLinux } from '@/hooks/usePlatform';
 import { useMemo } from 'react';
+import { RecordingHeader } from './RecordingHeader';
 
 /**
  * TranscriptPanel Component
@@ -55,7 +56,11 @@ export function TranscriptPanel({
       <div className="sticky top-0 z-10 bg-white p-4 border-gray-200">
         <div className="flex flex-col space-y-3">
           <div className="flex  flex-col space-y-2">
-            <div className="flex justify-center  items-center space-x-2">
+            <div className={isRecording
+              ? 'mx-auto flex w-2/3 max-w-[750px] items-center gap-3'
+              : 'flex justify-center  items-center space-x-2'}
+            >
+              {isRecording && <RecordingHeader />}
               <ButtonGroup>
                 {transcripts?.length > 0 && (
                   <Button
