@@ -49,6 +49,8 @@ function EditableRecordingTitle() {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(draft.title);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Enter/Escape end editing; a blur fired as the input unmounts must not commit again.
+  const editingRef = useRef(false);
 
   useEffect(() => {
     if (!isEditing) setValue(draft.title);
@@ -58,7 +60,14 @@ function EditableRecordingTitle() {
     if (isEditing) inputRef.current?.select();
   }, [isEditing]);
 
+  const startEditing = () => {
+    editingRef.current = true;
+    setIsEditing(true);
+  };
+
   const commit = () => {
+    if (!editingRef.current) return;
+    editingRef.current = false;
     const trimmed = value.trim();
     if (trimmed && trimmed !== draft.title) setDraftTitle(trimmed);
     else setValue(draft.title);
@@ -66,6 +75,7 @@ function EditableRecordingTitle() {
   };
 
   const cancel = () => {
+    editingRef.current = false;
     setValue(draft.title);
     setIsEditing(false);
   };
@@ -96,7 +106,7 @@ function EditableRecordingTitle() {
   return (
     <button
       type="button"
-      onClick={() => setIsEditing(true)}
+      onClick={startEditing}
       title="Rename meeting"
       aria-label={`Meeting title: ${draft.title || 'Untitled meeting'}. Click to rename.`}
       className="group flex min-w-0 flex-1 items-center gap-2 rounded-md border border-transparent px-2 py-1 text-left hover:border-gray-200 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
@@ -131,7 +141,8 @@ export function RecordingHeader() {
         >
           {isPaused ? 'Paused' : 'Rec'}
         </span>
-        <span className="text-sm font-medium tabular-nums text-gray-700" aria-label="Elapsed time">
+        <span role="timer" className="text-sm font-medium tabular-nums text-gray-700">
+          <span className="sr-only">Elapsed time </span>
           {formatDuration(elapsed)}
         </span>
       </div>

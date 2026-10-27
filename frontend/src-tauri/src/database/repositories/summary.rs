@@ -121,6 +121,22 @@ impl SummaryProcessesRepository {
         Ok(())
     }
 
+    /// Whether the run started at `started_at` is still the meeting's pending summary process.
+    pub async fn is_process_pending(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        started_at: DateTime<Utc>,
+    ) -> Result<bool, sqlx::Error> {
+        let row: Option<(i64,)> = sqlx::query_as(
+            "SELECT 1 FROM summary_processes WHERE meeting_id = ? AND start_time = ? AND LOWER(status) = 'pending'",
+        )
+        .bind(meeting_id)
+        .bind(started_at)
+        .fetch_optional(pool)
+        .await?;
+        Ok(row.is_some())
+    }
+
     pub async fn update_process_completed(
         pool: &SqlitePool,
         meeting_id: &str,

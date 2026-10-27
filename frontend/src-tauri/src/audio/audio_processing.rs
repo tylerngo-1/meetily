@@ -40,7 +40,14 @@ pub fn create_meeting_folder(
     let timestamp = Utc::now().format("%Y-%m-%d_%H-%M").to_string();
     let sanitized_name = sanitize_filename(meeting_name);
     let folder_name = format!("{}_{}", sanitized_name, timestamp);
-    let meeting_folder = base_path.join(folder_name);
+
+    // Two meetings with the same name started in the same minute must not share a folder
+    let mut meeting_folder = base_path.join(&folder_name);
+    let mut suffix = 2;
+    while meeting_folder.exists() {
+        meeting_folder = base_path.join(format!("{}_{}", folder_name, suffix));
+        suffix += 1;
+    }
 
     // Create main meeting folder
     std::fs::create_dir_all(&meeting_folder)?;
@@ -736,4 +743,22 @@ pub fn write_transcript_json_to_file(
     std::fs::write(&file_path, json_string)?;
 
     Ok(file_path.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod meeting_folder_tests {
+    use super::create_meeting_folder;
+
+    #[test]
+    fn same_name_in_same_minute_gets_distinct_folders() {
+        let base = tempfile::tempdir().unwrap();
+        let base_path = base.path().to_path_buf();
+
+        let first = create_meeting_folder(&base_path, "Meeting 2026-10-28 14.03", false).unwrap();
+        let second = create_meeting_folder(&base_path, "Meeting 2026-10-28 14.03", false).unwrap();
+
+        assert_ne!(first, second);
+        assert!(first.is_dir());
+        assert!(second.is_dir());
+    }
 }

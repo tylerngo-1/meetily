@@ -591,16 +591,9 @@ impl SummaryService {
                     }
                 };
 
-                match SummaryProcessesRepository::update_process_completed(
-                    &pool,
-                    &meeting_id,
-                    started_at,
-                    result_json,
-                    generated.successful_chunk_count,
-                    duration,
-                )
-                .await
-                {
+                // Rename before marking completed: the frontend reads the meeting title when it
+                // sees the completed status, so the title must already be final by then.
+                match SummaryProcessesRepository::is_process_pending(&pool, &meeting_id, started_at).await {
                     Ok(true) => {
                         if let Some(name) =
                             extract_meeting_name_from_markdown(&generated.final_markdown)
@@ -613,6 +606,25 @@ impl SummaryService {
                                 error!("Failed to update meeting name for {}: {}", meeting_id, error);
                             }
                         }
+                    }
+                    Ok(false) => {}
+                    Err(error) => error!(
+                        "Failed to check summary process state for {}: {}",
+                        meeting_id, error
+                    ),
+                }
+
+                match SummaryProcessesRepository::update_process_completed(
+                    &pool,
+                    &meeting_id,
+                    started_at,
+                    result_json,
+                    generated.successful_chunk_count,
+                    duration,
+                )
+                .await
+                {
+                    Ok(true) => {
                         info!("Summary saved successfully for meeting_id: {}", meeting_id);
                     }
                     Ok(false) => warn!("Skipped stale summary completion for meeting_id: {}", meeting_id),
