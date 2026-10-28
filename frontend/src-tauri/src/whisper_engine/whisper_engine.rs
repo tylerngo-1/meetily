@@ -448,6 +448,12 @@ impl WhisperEngine {
             "um um um",
             "uh uh uh",
             "ah ah ah",
+            // Vietnamese YouTube subtitle outros Whisper emits on near-silent audio.
+            // Keep these specific: a match drops the whole segment.
+            "ghiền mì gõ",
+            "subscribe cho kênh",
+            "không bỏ lỡ những video hấp dẫn",
+            "không bỏ lỡ những tin tức hấp dẫn",
         ];
 
         for pattern in &meaningless_patterns {
@@ -1802,5 +1808,30 @@ mod tests {
         assert!(!model_path.exists());
         let models = engine.discover_models().await.unwrap();
         assert!(matches!(tiny_model(&models).status, ModelStatus::Missing));
+    }
+
+    #[test]
+    fn vietnamese_subtitle_outros_are_filtered() {
+        for hallucination in [
+            "Hãy subscribe cho kênh Ghiền Mì Gõ để không bỏ lỡ những tin tức hấp dẫn",
+            "Hãy subscribe cho kênh Ghiền Mì Gõ Để không bỏ lỡ những video hấp dẫn",
+            "HÃY SUBSCRIBE CHO KÊNH GHIỀN MÌ GÕ",
+            "Hãy subscribe cho kênh La La School để không bỏ lỡ những video hấp dẫn",
+            "Điều này đi xem video, hãy subscribe cho kênh Ghiền Mì Gõ Để không bỏ lỡ những video hấp dẫn",
+        ] {
+            assert_eq!(WhisperEngine::clean_repetitive_text(hallucination), "", "{hallucination}");
+        }
+    }
+
+    #[test]
+    fn ordinary_vietnamese_speech_is_kept() {
+        for speech in [
+            "Chúng ta sẽ chốt kế hoạch triển khai vào thứ sáu",
+            "Cảm ơn các bạn đã tham gia buổi họp hôm nay",
+            "Mình cần đăng ký thêm tài khoản cho đội kinh doanh",
+            "Để không bỏ lỡ những gì thì mình biết em chứ",
+        ] {
+            assert_eq!(WhisperEngine::clean_repetitive_text(speech), speech);
+        }
     }
 }
