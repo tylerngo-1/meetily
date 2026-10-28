@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateContext';
+import { useMeetingDraft } from '@/contexts/MeetingDraftContext';
 import { storageService } from '@/services/storageService';
 import { transcriptService } from '@/services/transcriptService';
 import Analytics from '@/lib/analytics';
@@ -66,6 +67,8 @@ export function useRecordingStop(
     meetings,
     setIsMeetingActive,
   } = useSidebar();
+
+  const { flushDraftToMeeting } = useMeetingDraft();
 
   const router = useRouter();
 
@@ -293,6 +296,9 @@ export function useRecordingStop(
           console.log('   Transcripts:', freshTranscripts.length);
           console.log('   folder_path:', folderPath);
 
+          // Apply the title the user typed during recording (never blocks the save flow)
+          const draftTitle = await flushDraftToMeeting(meetingId);
+
           // Mark meeting as saved in IndexedDB (for recovery system)
           await markMeetingAsSaved();
 
@@ -316,7 +322,7 @@ export function useRecordingStop(
             }
           } catch (error) {
             console.warn('Could not fetch meeting details, using ID only:', error);
-            setCurrentMeeting({ id: meetingId, title: savedMeetingName || meetingTitle || 'New Meeting' });
+            setCurrentMeeting({ id: meetingId, title: draftTitle || savedMeetingName || meetingTitle || 'New Meeting' });
           }
 
           // Mark as completed
@@ -429,6 +435,7 @@ export function useRecordingStop(
     clearTranscripts,
     meetingTitle,
     markMeetingAsSaved,
+    flushDraftToMeeting,
     refetchMeetings,
     setCurrentMeeting,
     setMeetings,

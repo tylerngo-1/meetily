@@ -34,7 +34,7 @@ interface TranscriptConfig {
  * Handles both manual start (button click) and auto-start (from sidebar navigation).
  *
  * Features:
- * - Meeting title generation (format: Meeting DD_MM_YY_HH_MM_SS)
+ * - Meeting title generation (format: Meeting YYYY-MM-DD HH.MM)
  * - Transcript clearing on start
  * - Analytics tracking
  * - Recording notification display
@@ -56,16 +56,16 @@ export function useRecordingStart(
   const { selectedDevices } = useConfig();
   const { setStatus } = useRecordingState();
 
-  // Generate meeting title with timestamp
+  // Generate meeting title with timestamp. Must stay folder-safe: the backend
+  // derives the recording folder name from it (see sanitize_filename).
   const generateMeetingTitle = useCallback(() => {
     const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
+    const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = String(now.getFullYear()).slice(-2);
+    const day = String(now.getDate()).padStart(2, '0');
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    return `Meeting ${day}_${month}_${year}_${hours}_${minutes}_${seconds}`;
+    return `Meeting ${year}-${month}-${day} ${hours}.${minutes}`;
   }, []);
 
   const getTranscriptionProvider = useCallback(async (): Promise<string> => {
