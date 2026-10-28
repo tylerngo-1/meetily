@@ -49,6 +49,10 @@ if (platform === 'linux' && feature === 'cuda') {
 
 // Build the tauri command
 let tauriCmd = `tauri ${command}`;
+// Dev runs use their own app identifier so they never touch the installed app's data
+if (command === 'dev') {
+  tauriCmd += ' --config src-tauri/tauri.dev.conf.json';
+}
 if (feature && feature !== 'none') {
   tauriCmd += ` -- --features ${feature}`;
   console.log(`🚀 Running: tauri ${command} with features: ${feature}`);

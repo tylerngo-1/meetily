@@ -40,6 +40,6 @@ pnpm run build
 echo "Setting up build environment..."
 
 echo "Building Tauri app..."
-pnpm run tauri dev
+pnpm run tauri dev --config src-tauri/tauri.dev.conf.json
 sleep
 
