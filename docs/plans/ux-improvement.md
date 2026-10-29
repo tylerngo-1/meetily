@@ -1,6 +1,21 @@
 # UX Improvement Plan: Recording & Meeting Organization
 
-**Status:** Proposed · **Created:** 2026-10-28 · **Scope:** Items 1–8 (implement), items 9–11 (future)
+**Status:** In progress · Items 1a, 2, 5 shipped · **Created:** 2026-10-28 · **Updated:** 2026-10-29 · **Scope:** Items 1–8 (implement), items 9–11 (future)
+
+| Item | Status | Where |
+|---|---|---|
+| 1a Recording header + live timer | ✅ Shipped | PR #1 (`07efb86`, `47bc829`) |
+| 1b Real per-source audio levels | Not started | |
+| 2 Editable meeting title during recording | ✅ Shipped | PR #1 (`07efb86`, `47bc829`) |
+| 3 Sidebar date grouping | Not started | |
+| 4 Single start entry point + idle home | Not started | |
+| 5 Remove dead `/notes` route | ✅ Shipped | `f138819` (page deleted), `d4598a4` (sidebar routing) |
+| 6a Meeting duration / 6b Live notes | Not started | |
+| 7 Participants, tags, header, filters | Not started | |
+| 8 Start sheet + meeting type | Not started | |
+
+Line numbers in this plan were captured on 2026-10-28 and drift as code changes; locate code by the
+named symbol or file instead.
 
 This document is an implementation plan intended to be executed by engineers or AI coding agents. Each work item lists the problem, the target behavior, the exact files involved, implementation steps, and acceptance criteria. Items are ordered so each can ship as an independent PR.
 
@@ -34,11 +49,13 @@ These are coupling points between UI and core. Restyle around them freely, but p
 
 ```bash
 cd frontend
-pnpm run lint
 npx tsc --noEmit                      # type-check
-bun test                              # tests in frontend/tests/
-cd src-tauri && cargo check && cargo test   # only if Rust changed
+npx bun@1.3.14 test                   # tests in frontend/tests/ (bun is not a project dependency)
+cd src-tauri && cargo check && cargo test --lib   # only if Rust changed
 ```
+
+`pnpm run lint` is not usable yet (no ESLint config; see TD-01 in [tech-debt.md](tech-debt.md)).
+`cargo test --lib` has one known failure, `test_builtin_mic_detection` (TD-03); any other failure is new.
 
 Manual smoke test (required for any PR touching recording, sidebar, or meeting details):
 
@@ -50,16 +67,16 @@ Manual smoke test (required for any PR touching recording, sidebar, or meeting d
 
 ### 0.4 Suggested PR sequence
 
-| PR | Items | Rust changes? |
-|---|---|---|
-| PR-1 | 5 (remove dead `/notes` route) | No |
-| PR-2 | 1a (recording header + timer), 2 (editable title) | No |
-| PR-3 | 4 (single start entry point + idle home state) | No |
-| PR-4 | 1b (real audio levels) | Yes — small, pipeline |
-| PR-5 | 6a (duration), 3 (sidebar date grouping) | Yes — migration + API field |
-| PR-6 | 6b (live notes pane) | Yes — 2 commands |
-| PR-7 | 7 (participants, tags, meeting header, sidebar filters) | Yes — migration + commands |
-| PR-8 | 8 (start sheet + meeting type → template) | Yes — 1 column |
+| PR | Items | Rust changes? | Status |
+|---|---|---|---|
+| PR-1 | 5 (remove dead `/notes` route) | No | ✅ Done |
+| PR-2 | 1a (recording header + timer), 2 (editable title) | No (planned) · Yes (actual: migration + summary/folder fixes) | ✅ Done (PR #1) |
+| PR-3 | 4 (single start entry point + idle home state) | No | |
+| PR-4 | 1b (real audio levels) | Yes — small, pipeline | |
+| PR-5 | 6a (duration), 3 (sidebar date grouping) | Yes — migration + API field | |
+| PR-6 | 6b (live notes pane) | Yes — 2 commands | |
+| PR-7 | 7 (participants, tags, meeting header, sidebar filters) | Yes — migration + commands | |
+| PR-8 | 8 (start sheet + meeting type → template) | Yes — 1 column | |
 
 Shared foundation introduced in PR-2 and extended later: **`MeetingDraftContext`** (see §2.3) — the in-memory "meeting being recorded" metadata that is flushed to the DB after the meeting row is created.
 
@@ -67,13 +84,16 @@ Shared foundation introduced in PR-2 and extended later: **`MeetingDraftContext`
 
 ## 1. Current State Summary (Audit Findings)
 
+Status as of 2026-10-29: F1, F3 and F5 are resolved (items 1a, 2, 5). The evidence column describes
+the code as audited on 2026-10-28.
+
 | # | Finding | Evidence |
 |---|---|---|
-| F1 | No elapsed timer while recording | `RecordingControls.tsx:406-478` renders only pause/stop + bars in the recording branch; `duration` is hardcoded `0` (line 65) and only used in the unused playback branch |
+| F1 | ✅ *Resolved by item 1a.* No elapsed timer while recording | `RecordingControls.tsx:406-478` renders only pause/stop + bars in the recording branch; `duration` is hardcoded `0` (line 65) and only used in the unused playback branch |
 | F2 | Level bars are random, not real audio | `app/page.tsx:172-186` sets random heights every 300 ms |
-| F3 | Meeting title is auto-generated, not visible or editable while recording | `useRecordingStart.ts:60` → `Meeting 27_10_26_14_03_22`; home `TranscriptPanel` header has only Copy/Language |
+| F3 | ✅ *Resolved by item 2.* Meeting title is auto-generated, not visible or editable while recording | `useRecordingStart.ts:60` → `Meeting 27_10_26_14_03_22`; home `TranscriptPanel` header has only Copy/Language |
 | F4 | Two visually different "start recording" entry points | Sidebar footer red button (`Sidebar/index.tsx:777`) vs floating mic (`RecordingControls.tsx:384`) |
-| F5 | Dead sample route with fake data | `app/notes/[id]/page.tsx` (hardcoded "John Doe" etc.); sidebar routes non-meeting ids to `/notes/${id}` (`Sidebar/index.tsx:581-582`) |
+| F5 | ✅ *Resolved by item 5.* Dead sample route with fake data | `app/notes/[id]/page.tsx` (hardcoded "John Doe" etc.); sidebar routes non-meeting ids to `/notes/${id}` (`Sidebar/index.tsx:581-582`) |
 | F6 | Sidebar is a flat title list; no date, duration, or grouping | `SidebarProvider.tsx:100` consumes `api_get_meetings` which returns only `{id, title}` (`api.rs:30`) |
 | F7 | `meeting_notes` table exists but is unused | `migrations/20251223000000_add_meeting_notes.sql`; no references in `src/` or `src-tauri/src/` |
 | F8 | No participants / tags / type metadata | `meetings` table: `id, title, created_at, updated_at, folder_path` |
@@ -126,6 +146,16 @@ export interface MeetingDraft {
 - Persist the draft to `sessionStorage` key `meetily.meetingDraft` on every change (debounced 500 ms) so a renderer reload during recording doesn't lose it. Clear it after a successful flush.
 - Mount the provider in `frontend/src/app/layout.tsx` inside the existing providers, **below** `RecordingStateProvider` and `TranscriptProvider` (it reads neither, but keep ordering consistent).
 
+> **Implemented in PR #1 (minimal version).** What exists today, which items 6b, 7 and 8 must extend:
+> - `MeetingDraft` has only `title` and `generatedTitle`. Add the other fields when their item lands.
+> - The context exposes `draft`, `setDraftTitle(title)` and `flushDraftToMeeting(meetingId): Promise<string | null>`
+>   (returns the saved title, or `null` if unchanged or the save failed). There is no general
+>   `updateDraft`/`resetDraft` in the public API yet; add them when a second field needs editing.
+> - The draft resets itself on the `recording-started` event, reading the backend name via
+>   `recordingService.getRecordingMeetingName()`, so UI, sidebar and tray starts are all covered.
+> - The draft is written to `sessionStorage` (`meetily.meetingDraft`) on every change (no debounce) and
+>   restored after a renderer reload; `flushDraftToMeeting` clears it before saving.
+
 ### 2.4 Item 1a — Live timer (frontend only)
 
 **Files**
@@ -138,6 +168,11 @@ export interface MeetingDraft {
 2. To avoid the display jumping in 0.5 s steps, interpolate locally: store `{ baseSeconds: activeDuration, baseAt: performance.now() }` whenever `activeDuration` changes; render `baseSeconds + (now - baseAt)/1000` from a `requestAnimationFrame` or 250 ms interval tick, **only while not paused**. Clamp so it never goes backwards.
 3. Render status pill: red pulsing dot + "REC" when recording, amber dot + "PAUSED" when paused. Use `aria-live="polite"` on the status label only (not on the timer, to avoid screen-reader spam).
 4. Use `font-variant-numeric: tabular-nums` (`tabular-nums` Tailwind class) so the timer width doesn't jitter.
+
+> **Implemented in PR #1.** `RecordingHeader.tsx` (`useElapsedSeconds`) interpolates `activeDuration` with a
+> 250 ms interval, never decreases, and freezes while paused. The status pill shows "Rec" (red, pulsing under
+> `motion-safe`) or "Paused" (amber) with `aria-live="polite"`; the timer uses `tabular-nums` and `role="timer"`.
+> It is rendered by `TranscriptPanel.tsx` while recording. The random level bars (F2) are unchanged until item 1b.
 
 **Acceptance criteria**
 - Timer starts at 00:00 within 1 s of recording start, increments smoothly, freezes while paused, resumes from the frozen value.
@@ -190,7 +225,11 @@ The user can name the meeting at any point during recording. The default title i
 - The title passed to the backend at start (`meetingName` in `recordingService.startRecordingWithDevices`) becomes the **folder name** on disk. Renaming mid-recording must **not** attempt to rename the folder.
 - On stop, `useRecordingStop` saves using `savedMeetingName` from `sessionStorage` (backend source of truth). The rename is therefore applied **after save** via the existing `api_save_meeting_title` command (`api.rs:900`, params `meeting_id`, `title`).
 
-> **Implemented in `enhance/recording-header`.** Deviations from the steps below, which later items should build on:
+> **Implemented in `enhance/recording-header` (PR #1, `07efb86`, `47bc829`).** Deviations from the steps below, which later items should build on:
+> - Default title is `Meeting YYYY-MM-DD HH.MM` (folder-safe). Because it only has minute resolution, `create_meeting_folder` in `audio/audio_processing.rs` now appends `_2`, `_3`, ... when a folder with the same name already exists (covered by the `meeting_folder_tests` unit test).
+> - The title editor is a local `EditableRecordingTitle` component in `RecordingHeader.tsx` (not `components/EditableTitle.tsx`): click or Enter to edit, Enter/blur to commit, Esc to cancel, 200-character limit, empty reverts.
+> - `useRecordingStop` calls `flushDraftToMeeting(meetingId)` after `storageService.saveMeeting(...)` and before navigation; failures show a non-blocking toast.
+> - The AI-extracted meeting name is now written before the summary process is marked completed, so a poll that sees `completed` always reads the final title.
 > - The draft is reset from the `recording-started` event inside `MeetingDraftContext` (covers UI, sidebar **and tray** starts), not from the three paths in `useRecordingStart`.
 > - `TranscriptContext.meetingTitle` is **not** synced with the draft; the draft is the only source for the user's title.
 > - Summary generation used to overwrite the title unconditionally with the AI-extracted name (`summary/service.rs` → `update_meeting_name`). Migration `20261028000000_add_meeting_title_user_set.sql` adds `meetings.title_user_set`; `update_meeting_title` (user rename via `api_save_meeting_title`) sets it, and `update_meeting_name` (automatic) skips meetings where it is set. `useSummaryGeneration` now prefers the stored title (`pollingResult.meetingName`) over the summary's `MeetingName`. Any future rename path must pick the right repository function.
@@ -324,6 +363,9 @@ New component `frontend/src/app/_components/IdleHome.tsx`, rendered by `Transcri
 ---
 
 ## 6. Item 5 — Remove Dead `/notes` Route
+
+> **Implemented.** The page was deleted in `f138819` and the sidebar routing and `notes` icon branch were
+> removed in `d4598a4`. `grep -rn "/notes" frontend/src` finds no remaining links.
 
 ### 6.1 Steps
 

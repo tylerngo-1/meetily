@@ -84,7 +84,7 @@ docs/
 6. `development/building.md`; delete merged sources; shrink `frontend/README.md`; update `README.md` links.
 7. `development/ci-release.md`; delete `.github/workflows/*.md`.
 8. `testing.md`, `logging.md`, `recipes.md`; delete merged sources and stubs.
-9. Plans: status lines, UX plan updates (optional: convert `file:line` refs to symbols).
+9. Plans: status lines (UX plan status done early in step 2c), remaining UX plan updates (optional: convert `file:line` refs to symbols).
 10. Small fixes in remaining files (`templates/README.md`, links).
 11. `upstream-map.md`, sync recipe in `local-workflow.md`, `docs/README.md`, link check, cold read of `AGENTS.md`, merge to `devtest`.
 
@@ -173,7 +173,7 @@ Source of truth for Steps 3–8. Code problems found here are in [tech-debt.md](
 - Tooling seen locally: Node 20.20, pnpm 10.33 (CI: 9.15.9), cargo 1.99.1; `bun` not installed.
 
 ### Plans
-- `UX_IMPROVEMENT_PLAN.md`: items 1a and 2 shipped (`07efb86`, `47bc829`: `RecordingHeader.tsx`,
+- `UX_IMPROVEMENT_PLAN.md` (now `plans/ux-improvement.md`, status updated in step 2c): items 1a and 2 shipped (`07efb86`, `47bc829`: `RecordingHeader.tsx`,
   `lib/format-duration.ts`, migration `20261028000000_add_meeting_title_user_set.sql`); item 5 shipped
   (`d4598a4`). Items 1b, 3, 4, 6, 7, 8 not started. Finding F5 is obsolete.
 - `SPEAKER_DIARIZATION_PLAN.md`: proposal, no code; still uncommitted.
