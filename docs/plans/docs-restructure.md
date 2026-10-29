@@ -20,6 +20,7 @@ Claude Code, Gemini, ...) and for humans, while keeping original content that st
 | D7 | Lint is excluded from agent verification until configured | See TD-01. |
 | D8 | Frontend tests are documented as `npx bun@1.3.14 test` | See TD-02. |
 | D9 | Integration flow: feature branches → `devtest` → `main` | Documented in `docs/LOCAL_WORKFLOW.md`. Merge this branch into `devtest` when done. |
+| D10 | Commit messages never mention AI agents or tools | No `Co-Authored-By` or session trailers, no "generated with ..." lines, no tool names. Refer to agent instruction files generically (e.g. "agent instructions"). Goes into the git section of root `AGENTS.md` (Step 3). Applies to PR descriptions too. |
 
 ## Writing rules for agent-facing docs
 
