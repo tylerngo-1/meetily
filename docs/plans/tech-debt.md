@@ -146,3 +146,20 @@ These files are not compiled (verified against the compiler's dependency file fo
   `api/api.rs` (1383), `audio/import.rs` (1323).
 - The old plan's "20+ TODOs" were almost all in the dead `audio_v2/`; only 4 TODO/FIXME remain
   in compiled code.
+
+### TD-18 · Transcript text is logged at `info` level · Low
+- **Evidence:** `whisper_engine/whisper_engine.rs` logs `Transcription #N result: '...'` and
+  `Cleaned repetitive transcription ...`; `audio/transcription/worker.rs` logs
+  `Worker N transcription result: text='...'`. All at `info`, which stays enabled in release builds
+  (`log::set_max_level(LevelFilter::Info)` in `lib.rs`).
+- **Impact:** Logs go to stderr only (`env_logger`; `tauri-plugin-log` is a dependency but never
+  initialized, so no log file is written). Meeting content therefore shows up in terminal output,
+  the Windows debug console (`toggle_console`), and any output users paste into bug reports.
+- **Fix:** Move these lines to `perf_debug!` (compiled out in release), or log only text length and
+  segment counts. Decide separately whether to wire up `tauri-plugin-log` or remove the dependency.
+
+### TD-19 · Leftover HTTP client for the archived backend in `api/api.rs` · Low
+- **Evidence:** `APP_SERVER_URL = "http://localhost:5167"` and `make_api_request` are never called;
+  18 commands (e.g. `api_save_meeting_title`) still take `auth_token: Option<String>`, which the UI
+  never sends and the code only logs.
+- **Fix:** Remove the helper, the constant and the `auth_token` parameters.

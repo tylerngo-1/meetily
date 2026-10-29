@@ -1,6 +1,6 @@
 # Docs Restructure for AI Agents
 
-**Status:** In progress · Steps 1–2 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
+**Status:** In progress · Steps 1–4 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
 
 Goal: make this repo's documentation work well for any coding agent (Codex, Cursor, Copilot,
 Claude Code, Gemini, ...) and for humans, while keeping original content that still applies.
@@ -19,7 +19,7 @@ Claude Code, Gemini, ...) and for humans, while keeping original content that st
 | D6 | Docs branch changes docs only | Code, tooling and script problems go to `docs/plans/tech-debt.md` and are fixed on separate branches. Docs describe current behavior. |
 | D7 | Lint is excluded from agent verification until configured | See TD-01. |
 | D8 | Frontend tests are documented as `npx bun@1.3.14 test` | See TD-02. |
-| D9 | Integration flow: feature branches → `devtest` → `main` | Documented in `docs/LOCAL_WORKFLOW.md`. Merge this branch into `devtest` when done. |
+| D9 | Integration flow: feature branches → `devtest` → `main` | Documented in `docs/development/local-workflow.md`. Merge this branch into `devtest` when done. |
 | D10 | Commit messages never mention AI agents or tools | No `Co-Authored-By` or session trailers, no "generated with ..." lines, no tool names. Refer to agent instruction files generically (e.g. "agent instructions"). Goes into the git section of root `AGENTS.md` (Step 3). Applies to PR descriptions too. |
 
 ## Writing rules for agent-facing docs
@@ -79,8 +79,8 @@ docs/
 2. ✅ Moves only (`git mv` of 1:1 files + link fixes), so history and blame follow the files.
    Note: at sync time git detects a rename only if the moved file is still >50% similar to upstream's
    version, so heavily expanded files (e.g. `architecture/overview.md`) rely on the upstream map instead.
-3. Root `AGENTS.md` + `CLAUDE.md`.
-4. `frontend/src-tauri/` and `frontend/src/` `AGENTS.md` + `CLAUDE.md`.
+3. ✅ Root `AGENTS.md` + `CLAUDE.md`. The old 409-line `CLAUDE.md` is the source for steps 4–5: `git show c546dda:CLAUDE.md`.
+4. ✅ `frontend/src-tauri/` and `frontend/src/` `AGENTS.md` + `CLAUDE.md`.
 5. `docs/architecture/*`.
 6. `development/building.md`; delete merged sources; shrink `frontend/README.md`; update `README.md` links.
 7. `development/ci-release.md`; delete `.github/workflows/*.md`.
@@ -177,7 +177,7 @@ Source of truth for Steps 3–8. Code problems found here are in [tech-debt.md](
 - `UX_IMPROVEMENT_PLAN.md` (now `plans/ux-improvement.md`, status updated in step 2c): items 1a and 2 shipped (`07efb86`, `47bc829`: `RecordingHeader.tsx`,
   `lib/format-duration.ts`, migration `20261028000000_add_meeting_title_user_set.sql`); item 5 shipped
   (`d4598a4`). Items 1b, 3, 4, 6, 7, 8 not started. Finding F5 is obsolete.
-- `SPEAKER_DIARIZATION_PLAN.md`: proposal, no code; still uncommitted.
+- `SPEAKER_DIARIZATION_PLAN.md` (now `plans/speaker-diarization.md`, committed in `d601a52`): proposal, no code.
 
 ### Factual errors to fix while migrating content
 - `CLAUDE.md`: BlackHole requirement; `Meetily/models` paths; missing `AUDIO_MODULARIZATION_PLAN.md`;
