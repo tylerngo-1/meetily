@@ -22,12 +22,21 @@ upstream/main   official Meetily (Zackriya-Solutions/meetily)
       ▼
 origin/main     this fork: what is installed, or ready to install
       ▲
-      │ merge when tested in the dev app
-enhance/*, fix/*   feature work
+      │ promote when everything on devtest works together
+origin/devtest  integration: what the dev app runs day to day
+      ▲
+      │ merge when the feature is finished
+enhance/*, fix/*, docs/*   feature work, branched from main
 ```
 
-- Never commit directly to `main`.
-- Merge into `main` only after the change works in the dev app.
+- Never commit directly to `main` or `devtest`.
+- Branch features from `main`, not `devtest`, so one unfinished feature never blocks the others.
+- Merge only finished work into `devtest`. Promote `devtest` to `main` after it works in the dev app.
+  If something on `devtest` is not ready, merge the ready feature branches into `main` individually instead.
+- `devtest` must always contain `main`: after every upstream sync, merge `main` into `devtest`.
+- If `devtest` gets messy, reset it with `git checkout -B devtest main` and re-merge the branches still in progress
+  (then `git push --force-with-lease origin devtest`).
+- `upstream/devtest` is unrelated to this fork's `devtest`; only sync from `upstream/main`.
 - Every install tags the commit as `installed/<version>` (local tags, not pushed).
   `git tag -l 'installed/*'` shows the install history; the newest tag is what is installed.
 
@@ -39,6 +48,14 @@ cd frontend
 pnpm run tauri:dev        # hot reload for UI changes; Rust changes rebuild automatically
 ```
 
+When the feature is finished, test it together with the other work in progress:
+
+```bash
+git checkout devtest
+git merge --no-ff enhance/<name>
+cd frontend && pnpm run tauri:dev
+```
+
 Use `./clean_run.sh` only when dependencies changed or the build is in a strange state
 (it reinstalls `node_modules` every time).
 
@@ -46,7 +63,7 @@ Use `./clean_run.sh` only when dependencies changed or the build is in a strange
 
 ```bash
 git checkout main
-git merge enhance/<name>
+git merge devtest              # or a single ready branch: git merge enhance/<name>
 cd frontend && ./install_local.sh
 ```
 
@@ -82,6 +99,7 @@ git merge upstream/main        # resolve conflicts
 cd frontend && pnpm run tauri:dev   # test, especially recording and saving
 git checkout main && git merge sync/upstream-<version>
 ./install_local.sh
+git checkout devtest && git merge main   # keep devtest a superset of main
 ```
 
 Check `frontend/src-tauri/migrations/` after merging: upstream migrations and this fork's
