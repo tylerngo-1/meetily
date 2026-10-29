@@ -13,7 +13,7 @@ desktop application.
 Use these docs for current development:
 
 - [Frontend README](README.md)
-- [Building from Source](../docs/BUILDING.md)
+- [Building from Source](../docs/development/building.md)
 - [Architecture](../docs/architecture/overview.md)
 
 ## Archived Status

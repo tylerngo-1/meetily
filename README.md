@@ -121,8 +121,7 @@ Whether you're a defense consultant, enterprise executive, legal professional, o
 
 Build from source following our detailed guides:
 
-- [Building on Linux](docs/building_in_linux.md)
-- [General Build Instructions](docs/BUILDING.md)
+- [Building from source (Linux, macOS, Windows)](docs/development/building.md)
 
 **Quick start:**
 
@@ -207,7 +206,7 @@ For more details, see the [Architecture documentation](docs/architecture/overvie
 
 ## For Developers
 
-If you want to contribute to Meetily or build it from source, you'll need to have Rust and Node.js installed. For detailed build instructions, please see the [Building from Source guide](docs/BUILDING.md).
+If you want to contribute to Meetily or build it from source, you'll need to have Rust and Node.js installed. For detailed build instructions, please see the [Building from Source guide](docs/development/building.md).
 
 ## Meetily Pro
 

@@ -159,7 +159,7 @@ Use a compatible NVIDIA source-build environment with the CUDA toolkit. The stan
 
 ## Related Documentation
 
-- [Building from Source](../../docs/BUILDING.md)
+- [Building from Source](../../docs/development/building.md)
 - [Workflow Overview](WORKFLOWS_OVERVIEW.md)
 - [DevTest Workflow Guide](README_DEVTEST.md)
 - [Whisper.cpp](https://github.com/ggerganov/whisper.cpp)

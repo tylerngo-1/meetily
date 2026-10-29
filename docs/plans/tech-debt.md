@@ -74,20 +74,51 @@ or hides bugs. **Low** = cleanup.
 
 ### TD-09 · `llama-helper` sidecar is not built by the default dev/build path · High
 - **Evidence:** `tauri.conf.json` lists `binaries/llama-helper` in `externalBin`.
-  `src-tauri/binaries/` is gitignored. Only `dev-gpu.sh`, `build-gpu.sh` and CI build the helper;
+  `src-tauri/binaries/` is gitignored. Only `dev-gpu.sh`/`.bat`, `build-gpu.sh`/`.bat` and CI build the helper;
   `pnpm tauri:dev`, `clean_run.sh` and `install_local.sh` do not. (`ffmpeg` is fetched by `build.rs`.)
 - **Impact:** A fresh clone cannot run `pnpm tauri:dev` until the helper is built once.
   `install_local.sh` bundles whatever helper binary is already in `binaries/`, which can be stale.
 - **Fix:** Build the helper in `scripts/tauri-auto.js` (or a `beforeDevCommand` step) when it is
   missing or older than `llama-helper/src`, and in `install_local.sh`.
 
-### TD-10 · `clean_run.sh` can modify the lockfile · Low
-- **Evidence:** It runs `pnpm install` without `--frozen-lockfile`, unlike the documented install.
+### TD-10 · `clean_run.sh` and `clean_build.sh` can modify the lockfile · Low
+- **Evidence:** Both run `pnpm install` without `--frozen-lockfile`, unlike the documented install.
 - **Fix:** Use `pnpm install --frozen-lockfile`.
 
-### TD-11 · `dev-gpu.sh` / `build-gpu.sh` do not support Windows · Low
-- **Evidence:** Both exit unless `$OSTYPE` is macOS or Linux.
-- **Impact:** Windows contributors must use `pnpm tauri:dev` and build the sidecar by hand (see TD-09).
+### TD-11 · GPU build scripts are duplicated for Unix and Windows · Low
+- **Evidence:** `dev-gpu.sh`/`build-gpu.sh` (macOS/Linux) and `dev-gpu.bat`/`build-gpu.bat` (Windows)
+  repeat the same detect → build sidecar → copy → run Tauri logic, and `scripts/tauri-auto.js`
+  repeats the CUDA flags. (An earlier version of this entry said Windows had no GPU scripts; it does.)
+- **Impact:** Fixes must be made in several places (TD-06, TD-07 and TD-26 affect more than one script).
+- **Fix:** Move the sidecar build into a Node script shared by all platforms (see TD-09).
+
+### TD-25 · Stale build scripts and paths · Low
+- **Evidence:** `clean_build.sh` deletes `src-tauri/target` and `package-app.sh` deletes
+  `src-tauri/target/release` and points to `src-tauri/target/release/bundle`, but build output is in
+  `target/` at the repository root (Cargo workspace). `build_backup.bat` and `package-app.sh` are not
+  called by any script or workflow. None of `clean_*` or `build.bat` build the `llama-helper` sidecar (TD-09).
+  `llama-helper/Cargo.toml` has a `[profile.release]` section (LTO, `opt-level = "s"`) that Cargo
+  ignores, because profiles are only read from the workspace root `Cargo.toml`.
+- **Fix:** Correct the paths; delete `build_backup.bat` and `package-app.sh` if nobody uses them;
+  move the `llama-helper` profile to the root as `[profile.release.package.llama-helper]` or delete it.
+
+### TD-26 · Sidecar build fails when ROCm or OpenBLAS is detected · High
+- **Evidence:** `dev-gpu.sh`/`build-gpu.sh` pass the Whisper feature to `cargo build` for
+  `llama-helper`, mapping only `coreml` → `metal`; `dev-gpu.bat`/`build-gpu.bat` pass it unchanged.
+  `llama-helper/Cargo.toml` defines only `metal`, `cuda` and `vulkan`, so `hipblas` (Linux + ROCm) or
+  `openblas` (`BLAS_INCLUDE_DIRS` set, no GPU) makes the build fail.
+- **Impact:** The recommended first-run script fails on AMD/ROCm Linux machines and OpenBLAS setups.
+- **Fix:** Map `hipblas` and `openblas` to no sidecar feature (or to `vulkan` where available).
+
+### TD-27 · `[patch.crates-io]` in `frontend/src-tauri/Cargo.toml` is ignored · Medium
+- **Evidence:** It pins `cpal` to git rev `51c3b43` and `esaxx-rs` to the `feat/dynamic-msvc-link`
+  branch, but Cargo reads patches only from the workspace root (`cargo metadata` warns "patch for
+  the non root package will be ignored"). `Cargo.lock` resolves both from crates.io
+  (`cpal 0.15.3`, `esaxx-rs 0.1.10`). Ignored since the workspace was introduced (v0.2.0).
+- **Impact:** Whatever the patches were meant to fix (audio capture, Windows MSVC linking) is not in
+  the build. The current builds work, so the patches may no longer be needed, but nobody has decided that.
+- **Fix:** Decide per patch: move it to the root `Cargo.toml` (changes `Cargo.lock`, needs audio
+  testing on all platforms) or delete it. Upstream has the same issue.
 
 ---
 

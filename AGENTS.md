@@ -46,7 +46,7 @@ pnpm run dev                     # Next.js UI only, http://localhost:3118; every
 
 - **First run on a fresh clone:** the `llama-helper` sidecar must exist in
   `frontend/src-tauri/binaries/` (gitignored), otherwise the Rust build fails with
-  "`binaries/llama-helper-<target>` does not exist". On macOS/Linux run `./dev-gpu.sh` from
+  "`binaries/llama-helper-<target>` does not exist". On macOS/Linux run `./dev-gpu.sh` (Windows: `dev-gpu.bat`) from
   `frontend/` once; it builds the sidecar and starts the app. Otherwise, from the repo root:
   `cargo build -p llama-helper --release && cp target/release/llama-helper "frontend/src-tauri/binaries/llama-helper-$(rustc -vV | sed -n 's/host: //p')"`
   (add `--features metal` on macOS for GPU inference; add `.exe` to both names on Windows).
@@ -137,7 +137,7 @@ cargo test --lib                         # any Rust change
 | Transcription engines, models, import/re-transcription | [docs/architecture/transcription.md](docs/architecture/transcription.md) |
 | Summary providers, templates, built-in AI | [docs/architecture/summarization.md](docs/architecture/summarization.md) |
 | Data locations, database tables, migrations, legacy import | [docs/architecture/data-storage.md](docs/architecture/data-storage.md) |
-| Building from source, GPU acceleration | [docs/BUILDING.md](docs/BUILDING.md), [docs/building_in_linux.md](docs/building_in_linux.md) |
+| Building from source, GPU acceleration, build scripts | [docs/development/building.md](docs/development/building.md) |
 | Daily-use vs dev app, installing, rollback, upstream sync | [docs/development/local-workflow.md](docs/development/local-workflow.md) |
 | Logging rules | [frontend/src-tauri/LOGGING_OPTIMIZATIONS.md](frontend/src-tauri/LOGGING_OPTIMIZATIONS.md) |
 | Notification testing | [frontend/src-tauri/NOTIFICATION_TESTING.md](frontend/src-tauri/NOTIFICATION_TESTING.md) |
