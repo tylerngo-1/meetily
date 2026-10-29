@@ -1,6 +1,6 @@
 # Docs Restructure for AI Agents
 
-**Status:** In progress · Step 1 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
+**Status:** In progress · Steps 1–2 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
 
 Goal: make this repo's documentation work well for any coding agent (Codex, Cursor, Copilot,
 Claude Code, Gemini, ...) and for humans, while keeping original content that still applies.
@@ -75,7 +75,9 @@ docs/
 ## Steps (one commit each, reviewed before the next)
 
 1. ✅ Verify facts (findings below; code issues in `tech-debt.md`).
-2. Moves only (`git mv` of 1:1 files + link fixes), so git keeps rename detection for upstream syncs.
+2. ✅ Moves only (`git mv` of 1:1 files + link fixes), so history and blame follow the files.
+   Note: at sync time git detects a rename only if the moved file is still >50% similar to upstream's
+   version, so heavily expanded files (e.g. `architecture/overview.md`) rely on the upstream map instead.
 3. Root `AGENTS.md` + `CLAUDE.md`.
 4. `frontend/src-tauri/` and `frontend/src/` `AGENTS.md` + `CLAUDE.md`.
 5. `docs/architecture/*`.

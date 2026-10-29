@@ -13,7 +13,7 @@ Use these docs for the supported architecture and build flow:
 
 - [Top-level README](../README.md)
 - [Building from Source](../docs/BUILDING.md)
-- [Architecture](../docs/architecture.md)
+- [Architecture](../docs/architecture/overview.md)
 
 ## Security and Support Notice
 

@@ -203,7 +203,7 @@ CUDA is available through an appropriately configured NVIDIA source build; the s
 
 Meetily is a single, self-contained application built with [Tauri](https://tauri.app/). It uses a Rust-based backend to handle all the core logic, and a Next.js frontend for the user interface.
 
-For more details, see the [Architecture documentation](docs/architecture.md).
+For more details, see the [Architecture documentation](docs/architecture/overview.md).
 
 ## For Developers
 

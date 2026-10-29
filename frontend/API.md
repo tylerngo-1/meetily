@@ -14,7 +14,7 @@ Use these docs for current development:
 
 - [Frontend README](README.md)
 - [Building from Source](../docs/BUILDING.md)
-- [Architecture](../docs/architecture.md)
+- [Architecture](../docs/architecture/overview.md)
 
 ## Archived Status
 

@@ -18,7 +18,7 @@ Use these docs for supported setup and development:
 
 - [Top-level README](../README.md)
 - [Building from Source](../docs/BUILDING.md)
-- [Architecture](../docs/architecture.md)
+- [Architecture](../docs/architecture/overview.md)
 
 ## Status of This Directory
 
