@@ -133,6 +133,10 @@ cargo test --lib                         # any Rust change
 | Topic | Read |
 |---|---|
 | System architecture | [docs/architecture/overview.md](docs/architecture/overview.md) |
+| Audio capture, mixing, VAD, recording files | [docs/architecture/audio-pipeline.md](docs/architecture/audio-pipeline.md) |
+| Transcription engines, models, import/re-transcription | [docs/architecture/transcription.md](docs/architecture/transcription.md) |
+| Summary providers, templates, built-in AI | [docs/architecture/summarization.md](docs/architecture/summarization.md) |
+| Data locations, database tables, migrations, legacy import | [docs/architecture/data-storage.md](docs/architecture/data-storage.md) |
 | Building from source, GPU acceleration | [docs/BUILDING.md](docs/BUILDING.md), [docs/building_in_linux.md](docs/building_in_linux.md) |
 | Daily-use vs dev app, installing, rollback, upstream sync | [docs/development/local-workflow.md](docs/development/local-workflow.md) |
 | Logging rules | [frontend/src-tauri/LOGGING_OPTIMIZATIONS.md](frontend/src-tauri/LOGGING_OPTIMIZATIONS.md) |

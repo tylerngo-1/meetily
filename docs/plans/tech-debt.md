@@ -124,11 +124,12 @@ These files are not compiled (verified against the compiler's dependency file fo
   Linux, but the code uses `dirs::data_dir()`, which is `~/.local/share` (or `$XDG_DATA_HOME`).
 - **Fix:** Correct the comment (docs are corrected in the restructure).
 
-### TD-15 · Custom templates live outside the app data folder · Low
-- **Evidence:** Custom templates use `dirs::data_dir()/Meetily/templates`, while the database,
-  models and preferences use Tauri's `app_data_dir()` (`com.meetily.ai` / `com.meetily.ai.dev`).
-- **Impact:** Dev and daily builds share custom templates; backups made by `install_local.sh`
-  do not include them.
+### TD-15 · Custom templates and notification settings live outside the app data folder · Low
+- **Evidence:** Custom templates use `dirs::data_dir()/Meetily/templates` and notification settings
+  use `dirs::config_dir()/meetily/notifications.json` (`src/notifications/settings.rs`), while the
+  database, models and preferences use Tauri's `app_data_dir()` (`com.meetily.ai` / `com.meetily.ai.dev`).
+- **Impact:** Dev and daily builds share custom templates and notification settings; backups made
+  by `install_local.sh` do not include them.
 - **Fix:** Decide whether templates should move under `app_data_dir()` (needs a migration path
   for existing files).
 
@@ -163,3 +164,37 @@ These files are not compiled (verified against the compiler's dependency file fo
   18 commands (e.g. `api_save_meeting_title`) still take `auth_token: Option<String>`, which the UI
   never sends and the code only logs.
 - **Fix:** Remove the helper, the constant and the `auth_token` parameters.
+
+### TD-20 · Whisper "parallel processor" is registered but unused · Low
+- **Evidence:** `whisper_engine/parallel_processor.rs` and `parallel_commands.rs` register 11 commands
+  (`initialize_parallel_processor`, `start_parallel_processing`, ...) and `ParallelProcessorState` is
+  managed in `lib.rs`, but nothing in `frontend/src` calls any of them.
+- **Impact:** Dead feature surface that looks supported (the old `CLAUDE.md` advertised it).
+- **Fix:** Remove it, or wire it into batch import if it is wanted.
+
+### TD-21 · Stale comments in the audio mixer · Low
+- **Evidence:** `audio/pipeline.rs`: `AudioMixerRingBuffer` comments say 50 ms windows, the code uses
+  600 ms; `ProfessionalAudioMixer::mix_window` comments say system audio is pre-scaled to 70 %, the
+  code multiplies by `1.0` and leaves `_mic_scaled` unused.
+- **Fix:** Update the comments to match the code (or the code to match the intent, after listening tests).
+
+### TD-22 · `meeting_notes` and `licensing` tables are unused · Low
+- **Evidence:** `migrations/20251223000000_add_meeting_notes.sql` creates `meeting_notes` and
+  `migrations/20251105120000_add_pro_license_custom_openai.sql` creates `licensing`; no live Rust or
+  UI code reads or writes either. UX plan item 6b intends to use `meeting_notes`.
+- **Fix:** Implement item 6b; leave `licensing` as is (do not drop tables; migrations are permanent).
+
+### TD-23 · UI listens for `chunk-drop-warning`, which is never emitted · Low
+- **Evidence:** `hooks/useModalState.ts` and `services/recordingService.ts` subscribe to
+  `chunk-drop-warning`; the only emitter is the dead `lib_old_complex.rs`.
+- **Impact:** Audio buffer overflows are never surfaced to the user.
+- **Fix:** Emit it from the live pipeline when chunks are dropped, or remove the listener.
+
+### TD-24 · LLM API keys are stored in plain text · Medium
+- **Evidence:** Provider keys (`openaiApiKey`, `anthropicApiKey`, `groqApiKey`, `openRouterApiKey`,
+  and the custom OpenAI key inside the `customOpenAIConfig` JSON column) are stored in the SQLite `settings` table in `meeting_minutes.sqlite`.
+  No OS keychain is used.
+- **Impact:** Anyone or anything that can read the app data folder (backups, sync tools, malware)
+  gets the keys. `install_local.sh` backups also contain them.
+- **Fix:** Move keys to the OS keychain (e.g. the `keyring` crate) with a migration that copies and
+  then clears the columns.

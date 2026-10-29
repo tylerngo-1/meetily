@@ -2,6 +2,8 @@
 
 Read the root [AGENTS.md](../../AGENTS.md) first. This file adds what applies to the Next.js UI.
 Paths below are relative to `frontend/src/` unless they start with `frontend/`.
+How the UI fits with the Rust core (commands, events, life of a meeting):
+[architecture overview](../../docs/architecture/overview.md).
 
 ## Stack and constraints
 

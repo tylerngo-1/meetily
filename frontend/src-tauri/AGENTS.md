@@ -19,6 +19,11 @@ Paths below are relative to `frontend/src-tauri/`.
 | `analytics/` | Opt-in PostHog analytics |
 | `tray.rs`, `onboarding.rs`, `config.rs`, `state.rs`, `utils.rs` | Tray menu, first-run state, constants, `AppState` (holds the `DatabaseManager`), helpers |
 
+How the main subsystems work: [audio pipeline](../../docs/architecture/audio-pipeline.md),
+[transcription](../../docs/architecture/transcription.md),
+[summarization](../../docs/architecture/summarization.md),
+[data storage](../../docs/architecture/data-storage.md). Read the relevant one before changing a subsystem.
+
 Dead files are listed in the root `AGENTS.md` (rule 3). Search results inside them are irrelevant.
 `src/audio/devices/platform/{windows,linux}.rs` are live; they only compile on their platform.
 
@@ -44,7 +49,8 @@ Dead files are listed in the root `AGENTS.md` (rule 3). Search results inside th
 ## Database
 
 - Pool setup and `sqlx::migrate!("./migrations")` run in `database/manager.rs` at startup.
-- Migration rules are in the root `AGENTS.md` (rule 2). Name new files
+- Migration rules: root `AGENTS.md` (rule 2); full rules, tables and data locations in
+  [data-storage.md](../../docs/architecture/data-storage.md). Name new files
   `migrations/YYYYMMDDHHMMSS_description.sql` with a timestamp later than every existing one.
 - **sqlx column trap:** several queries map rows with an explicit column list, e.g.
   `query_as("SELECT id, title, created_at, updated_at, folder_path FROM meetings WHERE id = ?")`.
