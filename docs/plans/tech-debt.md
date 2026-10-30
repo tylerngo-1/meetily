@@ -1,6 +1,6 @@
 # Tech Debt
 
-**Status:** Living list · **Last verified:** 2026-10-29 against `main` at upstream v0.4.1 (`a2cb62e`) plus fork commits
+**Status:** Living list · **Last verified:** 2026-10-30 against `main` (`edafd89`: upstream v0.4.1 `a2cb62e` plus fork commits)
 
 This file lists known problems in code, tooling and build scripts. These are not doc problems: the
 docs describe how things work today, and this file records what should change. Fix each item on

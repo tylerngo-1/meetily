@@ -1,6 +1,6 @@
 # UX Improvement Plan: Recording & Meeting Organization
 
-**Status:** In progress · Items 1a, 2, 5 shipped · **Created:** 2026-10-28 · **Updated:** 2026-10-29 · **Scope:** Items 1–8 (implement), items 9–11 (future)
+**Status:** In progress · Items 1a, 2, 5 shipped · **Created:** 2026-10-28 · **Updated:** 2026-10-30 · **Scope:** Items 1–8 (implement), items 9–11 (future)
 
 | Item | Status | Where |
 |---|---|---|
@@ -14,8 +14,8 @@
 | 7 Participants, tags, header, filters | Not started | |
 | 8 Start sheet + meeting type | Not started | |
 
-Line numbers in this plan were captured on 2026-10-28 and drift as code changes; locate code by the
-named symbol or file instead.
+Code is referenced by file and symbol (function, component, struct) rather than line number;
+references were re-verified against `main` on 2026-10-30.
 
 This document is an implementation plan intended to be executed by engineers or AI coding agents. Each work item lists the problem, the target behavior, the exact files involved, implementation steps, and acceptance criteria. Items are ordered so each can ship as an independent PR.
 
@@ -25,45 +25,30 @@ This document is an implementation plan intended to be executed by engineers or 
 
 ### 0.1 Architecture reminders
 
-- The supported app is **Tauri (Rust) + Next.js** under `frontend/`. Do **not** touch `backend/` (archived FastAPI).
-- Frontend → Rust calls use `invoke('command_name', {...})`. Rust → frontend uses events (`listen('event-name', ...)`).
-- Tauri converts **camelCase JS argument keys to snake_case Rust parameters** (e.g. `{ meetingId }` → `meeting_id`). Match existing call sites when in doubt.
-- New Tauri commands must be added to `tauri::generate_handler![...]` in `frontend/src-tauri/src/lib.rs`.
-- SQLite migrations live in `frontend/src-tauri/migrations/` and run automatically at startup via `sqlx::migrate!("./migrations")` (`frontend/src-tauri/src/database/manager.rs:35`). **Never edit an existing migration file** — always add a new one named `YYYYMMDDHHMMSS_description.sql`. Migrations must be additive (`ALTER TABLE ... ADD COLUMN`, `CREATE TABLE IF NOT EXISTS`).
+Read the root [AGENTS.md](../../AGENTS.md) (rules, commands), [frontend/src/AGENTS.md](../../frontend/src/AGENTS.md)
+and [frontend/src-tauri/AGENTS.md](../../frontend/src-tauri/AGENTS.md) first. Step-by-step checklists
+for new commands, migrations, settings and events are in [recipes.md](../development/recipes.md).
+Migration rules are in [data-storage.md](../architecture/data-storage.md#migrations); in particular,
+name each new migration with the time you write it, after the newest file in `migrations/`.
 
 ### 0.2 Do-not-break list
 
 These are coupling points between UI and core. Restyle around them freely, but preserve their behavior:
+Recording start, stop/save and recording state are listed in
+[frontend/src/AGENTS.md](../../frontend/src/AGENTS.md#do-not-break); the rows below are specific to this plan.
 
 | Area | File | Why it's sensitive |
 |---|---|---|
-| Recording start (3 entry paths) | `frontend/src/hooks/useRecordingStart.ts` | Home button, sidebar auto-start (`sessionStorage.autoStartRecording`), and `start-recording-from-sidebar` window event all converge here. Model readiness checks live here. |
-| Recording stop & save | `frontend/src/hooks/useRecordingStop.ts` | Reads `last_recording_folder_path` / `last_recording_meeting_name` from `sessionStorage`, calls `storageService.saveMeeting` → `api_save_transcript`, then routes to `/meeting-details?id=...&source=recording` (which triggers auto-summary). |
-| Recording state | `frontend/src/contexts/RecordingStateContext.tsx` | Polls backend every 500 ms while recording; exposes `isRecording`, `isPaused`, `recordingDuration`, `activeDuration`, `status`. Single source of truth — do not duplicate this state. |
 | Live transcripts | `frontend/src/contexts/TranscriptContext.tsx` | Holds `transcripts`, `meetingTitle`, IndexedDB recovery writes. |
 | Audio pipeline | `frontend/src-tauri/src/audio/pipeline.rs` | Hot path. Only item 1b touches it, and only with a throttled, non-blocking emit. |
-| Meeting folder name | `frontend/src-tauri/src/audio/audio_processing.rs:15` (`sanitize_filename`) | The meeting title passed at recording start becomes the on-disk folder name. |
+| Meeting folder name | `frontend/src-tauri/src/audio/audio_processing.rs` (`sanitize_filename`) | The meeting title passed at recording start becomes the on-disk folder name. |
 | Meeting model queries | `frontend/src-tauri/src/database/repositories/meeting.rs` | `MeetingModel` is loaded via `sqlx::query_as` with **explicit column lists** (e.g. `get_meeting_metadata`). Adding a field to `MeetingModel` requires updating every `SELECT` that maps to it, or marking the field `#[sqlx(default)]`. |
 
 ### 0.3 Verification for every PR
 
-```bash
-cd frontend
-npx tsc --noEmit                      # type-check
-npx bun@1.3.14 test                   # tests in frontend/tests/ (bun is not a project dependency)
-cd src-tauri && cargo check && cargo test --lib   # only if Rust changed
-```
-
-`pnpm run lint` is not usable yet (no ESLint config; see TD-01 in [tech-debt.md](tech-debt.md)).
-`cargo test --lib` has one known failure, `test_builtin_mic_detection` (TD-03); any other failure is new.
-
-Manual smoke test (required for any PR touching recording, sidebar, or meeting details):
-
-1. Start a recording from the **home screen** and separately from the **sidebar** button.
-2. Speak for ~30 s; confirm live transcript appears.
-3. Pause → resume → stop.
-4. Confirm the meeting appears in the sidebar, the details page opens, and the summary auto-generates.
-5. Restart the app; confirm the meeting and its data persist.
+Run the checks in [testing.md](../development/testing.md#which-checks-to-run). Every item here touches
+recording, the sidebar or meeting details, so the
+[manual smoke test](../development/testing.md#manual-smoke-test) is required for each PR.
 
 ### 0.4 Suggested PR sequence
 
@@ -89,16 +74,16 @@ the code as audited on 2026-10-28.
 
 | # | Finding | Evidence |
 |---|---|---|
-| F1 | ✅ *Resolved by item 1a.* No elapsed timer while recording | `RecordingControls.tsx:406-478` renders only pause/stop + bars in the recording branch; `duration` is hardcoded `0` (line 65) and only used in the unused playback branch |
-| F2 | Level bars are random, not real audio | `app/page.tsx:172-186` sets random heights every 300 ms |
-| F3 | ✅ *Resolved by item 2.* Meeting title is auto-generated, not visible or editable while recording | `useRecordingStart.ts:60` → `Meeting 27_10_26_14_03_22`; home `TranscriptPanel` header has only Copy/Language |
-| F4 | Two visually different "start recording" entry points | Sidebar footer red button (`Sidebar/index.tsx:777`) vs floating mic (`RecordingControls.tsx:384`) |
-| F5 | ✅ *Resolved by item 5.* Dead sample route with fake data | `app/notes/[id]/page.tsx` (hardcoded "John Doe" etc.); sidebar routes non-meeting ids to `/notes/${id}` (`Sidebar/index.tsx:581-582`) |
-| F6 | Sidebar is a flat title list; no date, duration, or grouping | `SidebarProvider.tsx:100` consumes `api_get_meetings` which returns only `{id, title}` (`api.rs:30`) |
+| F1 | ✅ *Resolved by item 1a.* No elapsed timer while recording | `RecordingControls.tsx` rendered only pause/stop + bars in the recording branch; `duration` was hardcoded `0` and only used in the unused playback branch |
+| F2 | Level bars are random, not real audio | `app/page.tsx`: the `useEffect` that calls `setBarHeights` sets random heights every 300 ms while recording |
+| F3 | ✅ *Resolved by item 2.* Meeting title is auto-generated, not visible or editable while recording | `generateMeetingTitle` in `useRecordingStart.ts` → `Meeting 27_10_26_14_03_22`; home `TranscriptPanel` header has only Copy/Language |
+| F4 | Two visually different "start recording" entry points | Sidebar footer red "Start Recording" button (`Sidebar/index.tsx`) vs the floating mic button (`RecordingControls.tsx`) |
+| F5 | ✅ *Resolved by item 5.* Dead sample route with fake data | `app/notes/[id]/page.tsx` (hardcoded "John Doe" etc.); sidebar routed non-meeting ids to `/notes/${id}` (`renderItem` in `Sidebar/index.tsx`) |
+| F6 | Sidebar is a flat title list; no date, duration, or grouping | `SidebarProvider.tsx` consumes `api_get_meetings`, which returns only `{id, title}` (the `Meeting` struct in `api/api.rs`) |
 | F7 | `meeting_notes` table exists but is unused | `migrations/20251223000000_add_meeting_notes.sql`; no references in `src/` or `src-tauri/src/` |
-| F8 | No participants / tags / type metadata | `meetings` table: `id, title, created_at, updated_at, folder_path` |
+| F8 | No participants / tags / type metadata | `meetings` table: `id, title, created_at, updated_at, folder_path`, `title_user_set` (added by item 2) |
 | F9 | Meeting details page has no meeting header (date, duration, people) | `app/meeting-details/page-content.tsx` renders only `MeetingDetailsSplitView` |
-| F10 | Summary template is chosen only after the meeting, and not persisted per meeting | `hooks/meeting-details/useTemplates.ts:12` defaults to `standard_meeting` each mount |
+| F10 | Summary template is chosen only after the meeting, and not persisted per meeting | `hooks/meeting-details/useTemplates.ts` initializes `selectedTemplate` to `standard_meeting` on each mount |
 
 ---
 
@@ -186,7 +171,7 @@ export interface MeetingDraft {
 **Approach:** emit a lightweight, throttled level event from the recording pipeline itself.
 
 **Rust (`frontend/src-tauri/src/audio/pipeline.rs`)**
-1. Where per-device chunks are processed (the code path that already computes `mono_data` with `device_type` available, around the normalization block near L570–600), compute `rms` and `peak` for the chunk (cheap; the code already computes RMS in debug paths).
+1. Where per-device chunks are processed (the code path that already computes `mono_data` with `device_type` available, in `AudioCapture::process_audio_data`, right after the EBU R128 normalization step), compute `rms` and `peak` for the chunk (cheap; the code already computes RMS in debug paths).
 2. Maintain a per-device "latest level" in a small struct guarded by the existing pipeline task ownership (no new locks on the hot path if avoidable; an `AtomicU32` storing `f32::to_bits` per device is acceptable).
 3. Emit at most **10 Hz** an event `recording-audio-levels` with payload:
    ```rust
@@ -202,9 +187,9 @@ export interface MeetingDraft {
 
 **Frontend**
 1. New hook `frontend/src/hooks/useRecordingAudioLevels.ts`: `listen('recording-audio-levels')` while `isRecording`, unlisten on stop/unmount; expose `{ mic, system }` with smoothing (exponential decay, e.g. `level = max(new, prev * 0.85)`).
-2. In `RecordingHeader`, render two compact meters labeled **Mic** and **System** (naming convention per CLAUDE.md: "microphone"/"system"). Reuse `CompactAudioLevelMeter` from `frontend/src/components/AudioLevelMeter.tsx` if it fits; otherwise a 5-bar mini meter.
+2. In `RecordingHeader`, render two compact meters labeled **Mic** and **System** (naming convention per the root `AGENTS.md`, rule 5: "microphone"/"system"). Reuse `CompactAudioLevelMeter` from `frontend/src/components/AudioLevelMeter.tsx` if it fits; otherwise a 5-bar mini meter.
 3. If no level event has arrived for > 3 s while recording and not paused, show a subtle warning on that source: "No audio detected from Mic" with a link to device settings. Do **not** block recording.
-4. Replace the random `barHeights` animation in `frontend/src/app/page.tsx:172-186` with mic levels from the hook (keep the `barHeights` prop shape for `RecordingControls` to minimize churn), or remove the bars from `RecordingControls` entirely now that the header shows meters. Prefer removal; update `RecordingControlsProps` accordingly.
+4. Replace the random `barHeights` animation in `frontend/src/app/page.tsx` (the `setBarHeights` interval) with mic levels from the hook (keep the `barHeights` prop shape for `RecordingControls` to minimize churn), or remove the bars from `RecordingControls` entirely now that the header shows meters. Prefer removal; update `RecordingControlsProps` accordingly.
 
 **Acceptance criteria**
 - Speaking into the mic moves the Mic meter; playing system audio moves the System meter; silence shows flat meters.
@@ -223,7 +208,7 @@ The user can name the meeting at any point during recording. The default title i
 ### 3.2 Constraints
 
 - The title passed to the backend at start (`meetingName` in `recordingService.startRecordingWithDevices`) becomes the **folder name** on disk. Renaming mid-recording must **not** attempt to rename the folder.
-- On stop, `useRecordingStop` saves using `savedMeetingName` from `sessionStorage` (backend source of truth). The rename is therefore applied **after save** via the existing `api_save_meeting_title` command (`api.rs:900`, params `meeting_id`, `title`).
+- On stop, `useRecordingStop` saves using `savedMeetingName` from `sessionStorage` (backend source of truth). The rename is therefore applied **after save** via the existing `api_save_meeting_title` command (`api/api.rs`, params `meeting_id`, `title`).
 
 > **Implemented in `enhance/recording-header` (PR #1, `07efb86`, `47bc829`).** Deviations from the steps below, which later items should build on:
 > - Default title is `Meeting YYYY-MM-DD HH.MM` (folder-safe). Because it only has minute resolution, `create_meeting_folder` in `audio/audio_processing.rs` now appends `_2`, `_3`, ... when a folder with the same name already exists (covered by the `meeting_folder_tests` unit test).
@@ -236,7 +221,7 @@ The user can name the meeting at any point during recording. The default title i
 
 ### 3.3 Steps
 
-1. **Readable default title.** In `useRecordingStart.ts` `generateMeetingTitle` (line 60), change the format to `Meeting YYYY-MM-DD HH.MM` (e.g. `Meeting 2026-10-28 14.03`). It must contain no `/ \ : * ? " < > |` characters (folder-safe). Confirm with `sanitize_filename` in `audio_processing.rs:15` that it passes through unchanged. All three start paths in this file call `generateMeetingTitle` — no other change needed there.
+1. **Readable default title.** In `useRecordingStart.ts` `generateMeetingTitle`, change the format to `Meeting YYYY-MM-DD HH.MM` (e.g. `Meeting 2026-10-28 14.03`). It must contain no `/ \ : * ? " < > |` characters (folder-safe). Confirm with `sanitize_filename` in `audio_processing.rs` that it passes through unchanged. All three start paths in this file call `generateMeetingTitle` — no other change needed there.
 2. On recording start, call `resetDraft({ title: generated, generatedTitle: generated })` (all three start paths — put this in one place, e.g. right after `setMeetingTitle(...)`).
 3. In `RecordingHeader`, render an inline-editable title bound to `draft.title`. Reuse `frontend/src/components/EditableTitle.tsx` if its API fits; otherwise implement: click/Enter to edit, Enter/blur to commit, Esc to cancel, max 200 chars, trim, empty → revert to previous value.
 4. Also keep `TranscriptContext.setMeetingTitle(draft.title)` in sync so existing consumers (e.g. `RecordingControls meetingName` prop) see the new name.
@@ -278,7 +263,7 @@ Earlier
 
 ### 4.3 Backend (small, additive)
 
-1. `frontend/src-tauri/src/api/api.rs:30` — extend `Meeting`:
+1. `frontend/src-tauri/src/api/api.rs` — extend the `Meeting` struct:
    ```rust
    pub struct Meeting {
        pub id: String,
@@ -287,21 +272,21 @@ Earlier
        pub duration_seconds: Option<f64>,   // populated after Item 6a; None until then
    }
    ```
-2. In `api_get_meetings` (line 322), map `created_at` from `MeetingModel.created_at` (`DateTimeUtc` wrapper → `.0.to_rfc3339()`).
+2. In `api_get_meetings`, map `created_at` from `MeetingModel.created_at` (`DateTimeUtc` wrapper → `.0.to_rfc3339()`).
 3. Confirm `MeetingsRepository::get_meetings` orders by `created_at DESC`. If not, add the ordering.
 
 ### 4.4 Frontend
 
-1. `SidebarProvider.tsx:100` — update the invoke result type to include `created_at` and `duration_seconds`; extend `CurrentMeeting` / `SidebarItem` with optional `createdAt?: string; durationSeconds?: number | null`.
+1. `SidebarProvider.tsx` (the `invoke('api_get_meetings')` call) — update the invoke result type to include `created_at` and `duration_seconds`; extend `CurrentMeeting` / `SidebarItem` with optional `createdAt?: string; durationSeconds?: number | null`.
 2. New util `frontend/src/lib/meeting-date-groups.ts`:
    - `groupMeetingsByDate(meetings, now = new Date())` → ordered buckets: `Today`, `Yesterday`, `This week` (since Monday, locale-aware is optional), `This month`, `Earlier`. Empty buckets omitted.
    - Use local time.
    - Add unit tests in `frontend/tests/lib/meeting-date-groups.test.ts` (boundaries: midnight, Monday rollover, month rollover).
-3. `Sidebar/index.tsx` `renderItem` / scrollable list (lines 554–769): render group headers (small, uppercase, `text-xs text-gray-500`, sticky within the scroll container), then rows.
+3. `Sidebar/index.tsx` `renderItem` and the scrollable list that maps over items: render group headers (small, uppercase, `text-xs text-gray-500`, sticky within the scroll container), then rows.
 4. Row design: title (single line, `truncate`, full title in `title` attribute), second line `text-xs text-gray-500`: `2:03 PM · 47m`. Omit duration if null. Keep existing hover actions (rename, delete) and the search snippet block.
 5. During search, keep grouping but only show matching meetings (existing filtering logic in `filteredSidebarItems` stays authoritative).
 6. Reduce sidebar chrome to give the list room:
-   - Replace the full-width gray **Settings** button (line 805) with an icon button in the footer row next to the version label.
+   - Replace the full-width gray **Settings** button in the expanded sidebar's footer with an icon button in the footer row next to the version label.
    - Keep version label but at `text-[10px]`.
 
 ### 4.5 Acceptance criteria
@@ -343,15 +328,15 @@ New component `frontend/src/app/_components/IdleHome.tsx`, rendered by `Transcri
 
 1. Device line: read `selectedDevices` from `useConfig()`; "Change" opens the existing device settings (reuse the modal used by `SettingsModals` / `showModal`, or route to `/settings` recording tab).
 2. CTA calls the same start function as today's mic button (`handleRecordingStart` from `useRecordingStart`), with identical disabled/loading states (`isRecordingDisabled`, `isStartingRecording`, model validation spinner).
-3. Keep `PermissionWarning` above the CTA when permissions are missing (existing logic in `TranscriptPanel.tsx:93`).
+3. Keep `PermissionWarning` above the CTA when permissions are missing (existing `<PermissionWarning>` in `TranscriptPanel.tsx`).
 4. "Recent": the 3 most recent meetings from `useSidebar().meetings` (uses data from Item 3; if Item 3 hasn't landed, show titles only). Clicking navigates to `/meeting-details?id=...`.
 5. Keyboard shortcut: `Cmd/Ctrl+Shift+R` starts recording from the home page when idle. Register with a `keydown` listener scoped to the page; ignore when focus is in an input/textarea/contenteditable.
 
 ### 5.4 Edits
 
-- `frontend/src/app/page.tsx:217-248`: render the floating controls only when `recordingState.isRecording` (plus the existing status guards). Ensure the "Processing recording..." and stopping states still render (they are shown via `RecordingControls` and `StatusOverlays` — verify nothing disappears during STOPPING).
-- `Sidebar/index.tsx:777-793`: label "New recording", same mic icon; while recording, show "Recording · 12:47" (reuse `formatDuration` + `activeDuration`) and clicking navigates to `/` instead of being disabled.
-- Collapsed sidebar mic button (line 477): same behavior; tooltip "New recording".
+- `frontend/src/app/page.tsx` (where `<RecordingControls>` is rendered): render the floating controls only when `recordingState.isRecording` (plus the existing status guards). Ensure the "Processing recording..." and stopping states still render (they are shown via `RecordingControls` and `StatusOverlays` — verify nothing disappears during STOPPING).
+- `Sidebar/index.tsx`, the full-width "Start Recording" button in the expanded sidebar's footer: label "New recording", same mic icon; while recording, show "Recording · 12:47" (reuse `formatDuration` + `activeDuration`) and clicking navigates to `/` instead of being disabled.
+- Collapsed sidebar mic button (icon-only, inside a `Tooltip`; it also calls `handleRecordingToggle`): same behavior; tooltip "New recording".
 
 ### 5.5 Acceptance criteria
 
@@ -370,8 +355,8 @@ New component `frontend/src/app/_components/IdleHome.tsx`, rendered by `Transcri
 ### 6.1 Steps
 
 1. Delete `frontend/src/app/notes/[id]/page.tsx` (and the `notes` folder if empty).
-2. `Sidebar/index.tsx:581-582`: simplify routing to `item.id.startsWith('intro-call') ? '/' : `/meeting-details?id=${item.id}``.
-3. `Sidebar/index.tsx:591-592`: remove the `item.id === 'notes'` icon branch.
+2. `Sidebar/index.tsx` `renderItem`: simplify routing to `item.id.startsWith('intro-call') ? '/' : `/meeting-details?id=${item.id}``.
+3. `Sidebar/index.tsx` `renderItem`: remove the `item.id === 'notes'` icon branch.
 4. `grep -rn "/notes" frontend/src` — remove any remaining links. Do **not** confuse with the meeting notes feature in Item 6b (that lives inside meeting details, not a route).
 5. Confirm `pnpm run build` (Next static export) still succeeds — `generateStaticParams` removal must not break export.
 
@@ -385,7 +370,7 @@ New component `frontend/src/app/_components/IdleHome.tsx`, rendered by `Transcri
 
 ### 7.1 Item 6a — Persist duration
 
-**Migration** `frontend/src-tauri/migrations/20261028000000_add_meeting_duration.sql`:
+**Migration** `frontend/src-tauri/migrations/<YYYYMMDDHHMMSS>_add_meeting_duration.sql` (timestamp = when you write it; see §0.1):
 
 ```sql
 ALTER TABLE meetings ADD COLUMN ended_at TEXT;
@@ -401,7 +386,7 @@ WHERE duration_seconds IS NULL;
 
 **Rust**
 1. `database/models.rs` `MeetingModel`: add `#[sqlx(default)] pub ended_at: Option<String>` and `#[sqlx(default)] pub duration_seconds: Option<f64>`. Then update every `SELECT ... FROM meetings` that maps to `MeetingModel` in `repositories/meeting.rs` to include the new columns (search for `query_as`).
-2. `api_save_transcript` (`api.rs:930`): add optional param `duration_seconds: Option<f64>`. Pass to `TranscriptsRepository::save_transcript` and set `duration_seconds` and `ended_at = now()` on the meeting row it creates. If `None`, compute `MAX(audio_end_time)` from the saved segments.
+2. `api_save_transcript` (`api/api.rs`): add optional param `duration_seconds: Option<f64>`. Pass to `TranscriptsRepository::save_transcript` and set `duration_seconds` and `ended_at = now()` on the meeting row it creates. If `None`, compute `MAX(audio_end_time)` from the saved segments.
 3. Return `duration_seconds` from `api_get_meetings` (Item 3 field) and from `api_get_meeting_metadata` / `api_get_meeting`.
 4. Import path (`audio/import.rs`) should also set duration if it creates meetings — check and set from the audio length if readily available; otherwise leave the fallback.
 
@@ -435,7 +420,7 @@ WHERE duration_seconds IS NULL;
 4. Extend `flushDraftToMeeting(meetingId)` to call `api_save_meeting_notes` when `notesMarkdown.trim()` is non-empty.
 
 **Frontend — after recording (meeting details)**
-1. Add a third tab/pane **Notes** to `MeetingDetailsSplitView` (`TABS` array at line 11). Desktop layout recommendation: keep the transcript | summary split; render Notes as a tab **within the left pane** (Transcript / Notes) to avoid a 3-column layout. Mobile: three tabs.
+1. Add a third tab/pane **Notes** to `MeetingDetailsSplitView` (its `TABS` array). Desktop layout recommendation: keep the transcript | summary split; render Notes as a tab **within the left pane** (Transcript / Notes) to avoid a 3-column layout. Mobile: three tabs.
 2. Load via `api_get_meeting_notes` on mount (new hook `hooks/meeting-details/useMeetingNotes.ts`), autosave via `api_save_meeting_notes` debounced 1 s, show "Saved" / "Saving…" indicator.
 3. Include notes in the **Copy** output for the summary as a "My notes" section (`hooks/meeting-details/useCopyOperations.ts`), only if non-empty.
 
@@ -453,7 +438,7 @@ WHERE duration_seconds IS NULL;
 
 ### 8.1 Data model
 
-**Migration** `frontend/src-tauri/migrations/20261028000100_add_people_and_tags.sql`:
+**Migration** `frontend/src-tauri/migrations/<YYYYMMDDHHMMSS>_add_people_and_tags.sql` (timestamp = when you write it; see §0.1):
 
 ```sql
 CREATE TABLE IF NOT EXISTS people (
@@ -574,7 +559,7 @@ Before recording begins, optionally capture title, participants, meeting type, a
 
 ### 9.2 Data
 
-**Migration** `frontend/src-tauri/migrations/20261028000200_add_meeting_template.sql`:
+**Migration** `frontend/src-tauri/migrations/<YYYYMMDDHHMMSS>_add_meeting_template.sql` (timestamp = when you write it; see §0.1):
 
 ```sql
 ALTER TABLE meetings ADD COLUMN template_id TEXT;
@@ -695,4 +680,4 @@ New component `frontend/src/components/StartRecordingSheet.tsx` (use `components
 | Audio pipeline | `src-tauri/src/audio/pipeline.rs` |
 | Folder name sanitization | `src-tauri/src/audio/audio_processing.rs` |
 | Summary templates | `src-tauri/templates/*.json` |
-| Frontend tests | `tests/` (run with `bun test`) |
+| Frontend tests | `tests/` (run with `npx bun@1.3.14 test`) |

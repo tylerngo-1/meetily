@@ -1,6 +1,6 @@
 # Docs Restructure for AI Agents
 
-**Status:** In progress · Steps 1–8 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
+**Status:** In progress · Steps 1–9 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
 
 Goal: make this repo's documentation work well for any coding agent (Codex, Cursor, Copilot,
 Claude Code, Gemini, ...) and for humans, while keeping original content that still applies.
@@ -86,9 +86,11 @@ docs/
 6. ✅ `development/building.md`; delete merged sources; shrink `frontend/README.md`; update `README.md` links.
 7. ✅ `development/ci-release.md`; delete `.github/workflows/*.md`.
 8. ✅ `testing.md`, `logging.md`, `recipes.md`; delete merged sources and `frontend/API.md`; fix `RUST_LOG` advice, updater-key and script gaps in earlier guides.
-9. Plans: status lines (UX plan status done early in step 2c), remaining UX plan updates (optional: convert `file:line` refs to symbols).
+9. ✅ Plans: common status lines, UX plan `file:line` refs converted to symbols and re-verified, planned migration names fixed, duplicated guardrails replaced by links.
 10. Small fixes in remaining files (`templates/README.md`, links). `CONTRIBUTING.md` (upstream) says to branch from `devtest`; this fork branches from `main`: decide whether to note it or leave it.
 11. `upstream-map.md`, sync recipe in `local-workflow.md`, `docs/README.md`, link check, cold read of `AGENTS.md`, merge to `devtest`.
+    `devtest` already has the Vietnamese hallucination-filter commits (`fix/vietnamese-hallucination-filter`):
+    after the merge, check that `transcription.md` describes the filter (or that the fix branch adds it).
 
 ---
 
@@ -181,16 +183,19 @@ Source of truth for Steps 3–8. Code problems found here are in [tech-debt.md](
 - `SPEAKER_DIARIZATION_PLAN.md` (now `plans/speaker-diarization.md`, committed in `d601a52`): proposal, no code.
 
 ### Factual errors to fix while migrating content
-- `CLAUDE.md`: BlackHole requirement; `Meetily/models` paths; missing `AUDIO_MODULARIZATION_PLAN.md`;
+
+Status after step 9: ✅ fixed (where), or open (which step).
+
+- ✅ (steps 3–5: `AGENTS.md`, `architecture/*`) `CLAUDE.md`: BlackHole requirement; `Meetily/models` paths; missing `AUDIO_MODULARIZATION_PLAN.md`;
   stale "Current: fix/audio-mixing"; outdated `start_recording` example; incomplete audio tree and provider list.
-- `frontend/README.md`: claims speaker diarization support.
-- `GPU_ACCELERATION.md`: "edit `default = [\"cuda\"]`" (use `TAURI_GPU_FEATURE` or `tauri:dev:<feature>`);
+- ✅ (step 6) `frontend/README.md`: claims speaker diarization support.
+- ✅ (step 6, `building.md`) `GPU_ACCELERATION.md`: "edit `default = [\"cuda\"]`" (use `TAURI_GPU_FEATURE` or `tauri:dev:<feature>`);
   broken anchor `#--building-on-linux`; detection order wrong.
-- `BUILDING.md` Windows: "CPU-only by default" (auto-detection runs; NVIDIA without CUDA does fall back to CPU).
-- Linux guide: `TAURI_GPU_FEATURE=""` (TD-06) and `CMAKE_CUDA_ARCHITECTURES=86` example (TD-07).
-- Two different "build script internals" descriptions; the one above is correct.
-- `templates/README.md`: lists 2 of 6 templates; Linux path wrong.
-- `.github/workflows/WORKFLOWS_OVERVIEW.md`: lists upstream-only secrets (Apple, DigiCert, Supabase
+- ✅ (step 6) `BUILDING.md` Windows: "CPU-only by default" (auto-detection runs; NVIDIA without CUDA does fall back to CPU).
+- ✅ (step 6) Linux guide: `TAURI_GPU_FEATURE=""` (TD-06) and `CMAKE_CUDA_ARCHITECTURES=86` example (TD-07).
+- ✅ (step 6) Two different "build script internals" descriptions; the one above is correct.
+- Open (step 10) `templates/README.md`: lists 2 of 6 templates; Linux path wrong.
+- ✅ (step 7, `ci-release.md`) `.github/workflows/WORKFLOWS_OVERVIEW.md`: lists upstream-only secrets (Apple, DigiCert, Supabase
   license) as required; this fork has none.
-- Issue templates ask for "Browser" (desktop app).
-- `PRIVACY_POLICY.md`: `[Current Date]` placeholder; provider list incomplete (upstream policy, leave unless asked).
+- Open (step 10) Issue templates ask for "Browser" (desktop app).
+- Left as is (upstream) `PRIVACY_POLICY.md`: `[Current Date]` placeholder; provider list incomplete (upstream policy, leave unless asked).

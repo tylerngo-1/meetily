@@ -1,7 +1,6 @@
 # Speaker Diarization: Implementation Plan
 
-Status: **Proposal / research complete, no code written**
-Date: 2026-10-28
+**Status:** Proposal, research complete, no code written · **Created:** 2026-10-28 · **Updated:** 2026-10-30 (section 1 re-verified against `main`; research in sections 2 and 10 is as of 2026-10-28)
 
 Goal: label each transcript segment with *who* spoke ("Speaker 1", "Speaker 2", ...), fully on-device, with renamable and mergeable labels. This mirrors what the commercial Meetily Pro page describes (https://meetily.ai/speaker-diarization): on-device, no voiceprint enrolment, live labels during recording plus labels on imported / re-transcribed audio.
 
@@ -18,7 +17,7 @@ Goal: label each transcript segment with *who* spoke ("Speaker 1", "Speaker 2", 
 | Audio streams | Mic and system audio captured separately, then mixed for the recording | Strong prior: mic = local user, system = remote participants |
 | `transcripts.speaker` column | Added by `20251110000001_add_speaker_field.sql` (comment says `mic`/`system`) but **never written**: the `INSERT` in `database/repositories/transcript.rs` omits it and the `Transcript` model has no such field | Free to redesign; no legacy data to preserve |
 | Timestamps | `audio_start_time` / `audio_end_time` / `duration` per transcript row | Enough to join diarization turns to segments |
-| Whisper word timing | `whisper_engine.rs:581,698` sets `set_no_timestamps(true)` and `set_token_timestamps(true)` | Token times need verification before relying on them (see 5.3) |
+| Whisper word timing | `whisper_engine.rs` (`transcribe_audio` and `transcribe_audio_with_confidence`) sets `set_no_timestamps(true)` and `set_token_timestamps(true)` | Token times need verification before relying on them (see 5.3) |
 | Parakeet word timing | `parakeet_engine/model.rs` returns per-token `timestamps` | Word-level alignment is straightforward |
 | Batch paths | `audio/import.rs`, `audio/retranscription.rs` (VAD with 2000 ms redemption) | Best place for the MVP |
 | Licensing code | Migration `20251105120000_add_pro_license_custom_openai.sql` exists | A product decision is needed on whether this feature is gated (see section 9) |
@@ -158,7 +157,7 @@ Cut VAD chunks at diarization boundaries, then transcribe each piece. Simpler an
 ## 6. Models and download UX
 
 - One "Speaker identification" pack: seg-3.0 int8 (~1.5 MB) + one embedding model (~25 to 40 MB, **size estimated, verify**).
-- Reuse the Whisper/Parakeet download manager conventions: progress events, resumable download, SHA-256 verification, stored under the existing models directory (`~/Library/Application Support/Meetily/models/` on macOS).
+- Reuse the existing download conventions: progress events, and resumable downloads as in Parakeet and Built-in AI (HTTP `Range`; Whisper downloads do not resume), stored under the existing models directory (`<app data>/models/`, see [data-storage.md](../architecture/data-storage.md#locations)). No current downloader verifies a checksum (Parakeet checks file size only; `sha2` is a dependency but unused), so add SHA-256 verification for these models.
 - Default embedding model: decide in Phase 0 by benchmark. TitaNet-small is English-trained; WeSpeaker ResNet34 / CAM++ are better candidates for multilingual use (open question 3).
 - Add attribution for CC-BY weights to the About screen.
 
