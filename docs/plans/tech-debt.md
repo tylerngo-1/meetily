@@ -120,6 +120,35 @@ or hides bugs. **Low** = cleanup.
 - **Fix:** Decide per patch: move it to the root `Cargo.toml` (changes `Cargo.lock`, needs audio
   testing on all platforms) or delete it. Upstream has the same issue.
 
+### TD-28 · CI cannot produce installers in this fork · Medium
+- **Evidence:** `tauri.conf.json` sets `createUpdaterArtifacts: true` with upstream's updater
+  `pubkey`; no workflow passes `--no-sign`. The Tauri CLI (2.11.1) stops with "A public key has been
+  found, but no private key" when `TAURI_SIGNING_PRIVATE_KEY` is unset, and this fork has no secrets.
+  The updater endpoint is upstream's `latest.json`.
+- **Impact:** Every workflow, including DevTest with signing off, fails at bundling here. A fork key
+  would not match upstream's public key, and fork releases would never reach the app's update check.
+- **Fix:** For CI artifacts only, pass `--no-sign` (or disable updater artifacts) when no key is set.
+  For fork releases, generate a fork key pair, replace `pubkey` and the endpoint, and add the secrets.
+
+### TD-29 · Windows `llama-helper` sidecar is built differently per workflow · Medium
+- **Evidence:** `build-devtest.yml` builds it with `--features vulkan`; `build.yml` (used by
+  `release.yml` and `build-test.yml`) and `build-windows.yml` build it without features (CPU).
+- **Impact:** Released Windows builds run Built-in AI on the CPU while DevTest builds use Vulkan, so
+  DevTest does not test what ships.
+- **Fix:** Pick one (Vulkan matches the Whisper build) and use it in all three workflows.
+
+### TD-30 · `build-linux.yml` installs an unused Vulkan SDK · Low
+- **Evidence:** It adds LunarG's apt repository and installs `vulkan-sdk` and Mesa drivers, then
+  builds with `--features openblas` and a CPU sidecar.
+- **Impact:** Slower runs and an extra external dependency for nothing.
+- **Fix:** Remove the Vulkan steps, or build with `vulkan` if that was the intent.
+
+### TD-31 · Workflows pass unused license secrets · Low
+- **Evidence:** `MEETILY_RSA_PUBLIC_KEY`, `SUPABASE_URL` and `SUPABASE_ANON_KEY` are passed to the
+  Tauri build in the workflows, but no code in `frontend/` or `llama-helper/` reads them.
+- **Impact:** Misleading: they look required, and the old workflow docs listed them as required.
+- **Fix:** Remove them from all workflows together, so upstream syncs stay simple.
+
 ---
 
 ## Rust core (`frontend/src-tauri`)

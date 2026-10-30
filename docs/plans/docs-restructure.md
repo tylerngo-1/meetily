@@ -1,6 +1,6 @@
 # Docs Restructure for AI Agents
 
-**Status:** In progress · Steps 1–6 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
+**Status:** In progress · Steps 1–7 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
 
 Goal: make this repo's documentation work well for any coding agent (Codex, Cursor, Copilot,
 Claude Code, Gemini, ...) and for humans, while keeping original content that still applies.
@@ -83,7 +83,7 @@ docs/
 4. ✅ `frontend/src-tauri/` and `frontend/src/` `AGENTS.md` + `CLAUDE.md`.
 5. ✅ `docs/architecture/*` (overview, audio-pipeline, transcription, summarization, data-storage).
 6. ✅ `development/building.md`; delete merged sources; shrink `frontend/README.md`; update `README.md` links.
-7. `development/ci-release.md`; delete `.github/workflows/*.md`.
+7. ✅ `development/ci-release.md`; delete `.github/workflows/*.md`.
 8. `testing.md`, `logging.md`, `recipes.md`; delete merged sources and stubs.
 9. Plans: status lines (UX plan status done early in step 2c), remaining UX plan updates (optional: convert `file:line` refs to symbols).
 10. Small fixes in remaining files (`templates/README.md`, links).

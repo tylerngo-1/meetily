@@ -91,7 +91,7 @@ pnpm run dev                     # Next.js UI only, http://localhost:3118; every
 
 - `frontend/src-tauri/` → read [frontend/src-tauri/AGENTS.md](frontend/src-tauri/AGENTS.md) first.
 - `frontend/src/` → read [frontend/src/AGENTS.md](frontend/src/AGENTS.md) first.
-- `.github/workflows/` → read the CI and release guide first (currently `.github/workflows/ACCELERATION_GUIDE.md`);
+- `.github/workflows/` → read [docs/development/ci-release.md](docs/development/ci-release.md) first;
   Windows portability settings there must be kept as a unit.
 
 ## Verify before you finish
@@ -142,7 +142,7 @@ cargo test --lib                         # any Rust change
 | Logging rules | [frontend/src-tauri/LOGGING_OPTIMIZATIONS.md](frontend/src-tauri/LOGGING_OPTIMIZATIONS.md) |
 | Notification testing | [frontend/src-tauri/NOTIFICATION_TESTING.md](frontend/src-tauri/NOTIFICATION_TESTING.md) |
 | Summary templates | [frontend/src-tauri/templates/README.md](frontend/src-tauri/templates/README.md) |
-| CI and release workflows | [.github/workflows/WORKFLOWS_OVERVIEW.md](.github/workflows/WORKFLOWS_OVERVIEW.md) |
+| CI and release workflows, Windows portability rules | [docs/development/ci-release.md](docs/development/ci-release.md) |
 | Known problems | [docs/plans/tech-debt.md](docs/plans/tech-debt.md) |
 | Plans (check status lines before implementing) | [docs/plans/](docs/plans/) |
 
