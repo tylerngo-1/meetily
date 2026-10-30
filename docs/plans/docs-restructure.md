@@ -1,6 +1,6 @@
 # Docs Restructure for AI Agents
 
-**Status:** In progress · Steps 1–9 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
+**Status:** In progress · Steps 1–10 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
 
 Goal: make this repo's documentation work well for any coding agent (Codex, Cursor, Copilot,
 Claude Code, Gemini, ...) and for humans, while keeping original content that still applies.
@@ -87,7 +87,7 @@ docs/
 7. ✅ `development/ci-release.md`; delete `.github/workflows/*.md`.
 8. ✅ `testing.md`, `logging.md`, `recipes.md`; delete merged sources and `frontend/API.md`; fix `RUST_LOG` advice, updater-key and script gaps in earlier guides.
 9. ✅ Plans: common status lines, UX plan `file:line` refs converted to symbols and re-verified, planned migration names fixed, duplicated guardrails replaced by links.
-10. Small fixes in remaining files (`templates/README.md`, links). `CONTRIBUTING.md` (upstream) says to branch from `devtest`; this fork branches from `main`: decide whether to note it or leave it.
+10. ✅ Small fixes in remaining files: `templates/README.md` (all 6 templates, Linux path, real function names), issue templates (desktop-app environment fields), a fork note at the top of `CONTRIBUTING.md`. Root `README.md`, `PRIVACY_POLICY.md` and the PR template are left as upstream's.
 11. `upstream-map.md`, sync recipe in `local-workflow.md`, `docs/README.md`, link check, cold read of `AGENTS.md`, merge to `devtest`.
     `devtest` already has the Vietnamese hallucination-filter commits (`fix/vietnamese-hallucination-filter`):
     after the merge, check that `transcription.md` describes the filter (or that the fix branch adds it).
@@ -194,8 +194,8 @@ Status after step 9: ✅ fixed (where), or open (which step).
 - ✅ (step 6) `BUILDING.md` Windows: "CPU-only by default" (auto-detection runs; NVIDIA without CUDA does fall back to CPU).
 - ✅ (step 6) Linux guide: `TAURI_GPU_FEATURE=""` (TD-06) and `CMAKE_CUDA_ARCHITECTURES=86` example (TD-07).
 - ✅ (step 6) Two different "build script internals" descriptions; the one above is correct.
-- Open (step 10) `templates/README.md`: lists 2 of 6 templates; Linux path wrong.
+- ✅ (step 10) `templates/README.md`: lists 2 of 6 templates; Linux path wrong.
 - ✅ (step 7, `ci-release.md`) `.github/workflows/WORKFLOWS_OVERVIEW.md`: lists upstream-only secrets (Apple, DigiCert, Supabase
   license) as required; this fork has none.
-- Open (step 10) Issue templates ask for "Browser" (desktop app).
+- ✅ (step 10) Issue templates ask for "Browser" (desktop app).
 - Left as is (upstream) `PRIVACY_POLICY.md`: `[Current Date]` placeholder; provider list incomplete (upstream policy, leave unless asked).

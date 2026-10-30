@@ -21,11 +21,13 @@ assignees: ''
 3. [And so on...]
 
 ## Environment
-- OS: [e.g., macOS, Windows, Linux]
-- Browser: [e.g., Chrome, Firefox, Safari]
-- Version: [e.g., 1.0.0]
-- Node Version: [e.g., 18.0.0]
-- npm/pnpm Version: [e.g., 8.0.0]
+- OS and version: [e.g., macOS 15.1 (Apple Silicon), Windows 11, Ubuntu 24.04]
+- Meetily version: [e.g., 0.4.1]
+- Installed from: [release installer, source build, or `install_local.sh`]
+- Transcription engine and model: [e.g., Parakeet v3, Whisper large-v3-turbo]
+- Summary provider and model: [e.g., Built-in AI qwen3.5:4b, Ollama, Claude]
+- Audio devices: [microphone and system audio devices in use]
+- For build problems only: Node, pnpm and Rust versions, GPU feature used
 
 ## Screenshots/Videos
 [If applicable, add screenshots or videos to help explain your problem]

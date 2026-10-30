@@ -91,7 +91,7 @@ Test with a short and a long (chunked) transcript.
 ## 6. Send an event from Rust to the UI
 
 1. Emit with `use tauri::Emitter;` and `app.emit("kebab-case-name", payload)`; the payload must
-   implement `Serialize` (or use `serde_json::json!`).
+   implement `Serialize + Clone` (or use `serde_json::json!`).
 2. Listen in the UI with `listen('kebab-case-name', ...)` and unlisten on unmount, using the pattern
    in [src/AGENTS.md](../../frontend/src/AGENTS.md#talking-to-the-rust-core).
 3. Grep for the name on both sides before finishing; there is no central list, and a listener for an
