@@ -12,7 +12,8 @@ This repository is a **fork** of [Zackriya-Solutions/meetily](https://github.com
 that is synced from upstream regularly.
 
 The supported app is a single **Tauri 2** application: a **Next.js 14 / React 18** UI and a **Rust** core.
-There is no separate server. Releases ship for macOS (Apple Silicon) and Windows; Linux is built from source.
+There is no separate server. Upstream releases ship for macOS (Apple Silicon) and Windows; Linux is built
+from source. This fork publishes no releases.
 This fork is developed on macOS and also used daily on the same machine (see [local workflow](docs/development/local-workflow.md)).
 
 ## Repository map
@@ -40,7 +41,7 @@ Use pnpm `9.15.9` (the version CI uses). Run frontend commands from `frontend/`.
 cd frontend
 pnpm install --frozen-lockfile   # install; never update pnpm-lock.yaml unless changing dependencies
 pnpm run tauri:dev               # full app in dev mode (GPU auto-detected, dev app identifier)
-pnpm run tauri:build             # production build
+pnpm run tauri:build             # production build; fails at the end without an updater key (TD-28)
 pnpm run dev                     # Next.js UI only, http://localhost:3118; every Tauri call fails here
 ```
 
@@ -55,8 +56,11 @@ pnpm run dev                     # Next.js UI only, http://localhost:3118; every
   Explicit scripts also exist: `pnpm run tauri:dev:<feature>` for `cpu|metal|coreml|cuda|vulkan|hipblas|openblas`.
 - **Logs:** Rust logs print to the `tauri:dev` terminal, `info` and above only; `RUST_LOG` currently
   has no effect (TD-32). Details: [docs/development/logging.md](docs/development/logging.md).
-- Dev builds use the app identifier `com.meetily.ai.dev` and their own data folder, so they never
-  touch the installed app's data.
+- Dev builds use the app identifier `com.meetily.ai.dev` and their own data folder, so they do not
+  touch the installed app's data, except custom summary templates and notification settings,
+  which both apps share (TD-15).
+- **Production builds without the updater key:** see
+  [building.md](docs/development/building.md#6-production-builds).
 
 ## Rules
 
@@ -132,6 +136,7 @@ cargo test --lib                         # any Rust change
 
 | Topic | Read |
 |---|---|
+| Index of all docs | [docs/README.md](docs/README.md) |
 | System architecture | [docs/architecture/overview.md](docs/architecture/overview.md) |
 | Audio capture, mixing, VAD, recording files | [docs/architecture/audio-pipeline.md](docs/architecture/audio-pipeline.md) |
 | Transcription engines, models, import/re-transcription | [docs/architecture/transcription.md](docs/architecture/transcription.md) |
@@ -139,6 +144,7 @@ cargo test --lib                         # any Rust change
 | Data locations, database tables, migrations, legacy import | [docs/architecture/data-storage.md](docs/architecture/data-storage.md) |
 | Building from source, GPU acceleration, build scripts | [docs/development/building.md](docs/development/building.md) |
 | Daily-use vs dev app, installing, rollback, upstream sync | [docs/development/local-workflow.md](docs/development/local-workflow.md) |
+| Where upstream's docs live in this fork (for syncs) | [docs/development/upstream-map.md](docs/development/upstream-map.md) |
 | Testing, test data, debugging, notification testing | [docs/development/testing.md](docs/development/testing.md) |
 | Logging setup and rules | [docs/development/logging.md](docs/development/logging.md) |
 | Checklists for common changes (commands, migrations, settings, providers, ...) | [docs/development/recipes.md](docs/development/recipes.md) |
@@ -147,9 +153,9 @@ cargo test --lib                         # any Rust change
 | Known problems | [docs/plans/tech-debt.md](docs/plans/tech-debt.md) |
 | Plans (check status lines before implementing) | [docs/plans/](docs/plans/) |
 
-Docs are being restructured (see [docs/plans/docs-restructure.md](docs/plans/docs-restructure.md));
-some files above will move. Known inaccuracies in the older guides are listed in that plan's
-"Factual errors" section, and this file takes precedence where they disagree.
+Where another doc disagrees with this file, this file takes precedence; fix the other doc or add a
+tech-debt entry. Upstream-owned files (`README.md`, `CONTRIBUTING.md`, `PRIVACY_POLICY.md`) describe
+upstream, not this fork.
 
 ## Keep docs current
 

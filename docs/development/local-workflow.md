@@ -92,18 +92,49 @@ because every local build has a new ad-hoc signature.
 
 ## Pulling official updates
 
+Run the steps in one shell (they reuse `$OLD`).
+
+**1. Merge upstream into a sync branch**
+
 ```bash
 git checkout main && git checkout -b sync/upstream-<version>
 git fetch upstream
-git merge upstream/main        # resolve conflicts
-cd frontend && pnpm run tauri:dev   # test, especially recording and saving
-git checkout main && git merge sync/upstream-<version>
-./install_local.sh
-git checkout devtest && git merge main   # keep devtest a superset of main
+OLD=$(git merge-base main upstream/main)        # upstream commit we last synced
+git diff --stat "$OLD" upstream/main            # what upstream changed (read before merging)
+git merge upstream/main                         # then resolve conflicts (step 2)
 ```
 
-Check `frontend/src-tauri/migrations/` after merging: upstream migrations and this fork's
-migrations must all be present, and none of them may be renamed.
+**2. Resolve conflicts and update docs** (in the sync branch)
+
+- **Migrations:** check `frontend/src-tauri/migrations/`. Upstream migrations and this fork's
+  migrations must all be present, and none of them may be renamed.
+- **Docs:** this fork moved and merged most of upstream's docs, so conflicts on upstream doc files
+  are expected. Look each file up in [upstream-map.md](upstream-map.md), apply upstream's change
+  (`git diff "$OLD" upstream/main -- <file>`) to the file named there, then mark the conflict
+  resolved: `git rm <file>` for files we deleted, or `git checkout --ours <file> && git add <file>`
+  for files we rewrote.
+- **Code that our docs describe:** compare `git diff --stat "$OLD" upstream/main` with the
+  "Upstream code changes that make our docs stale" table in [upstream-map.md](upstream-map.md)
+  and update those docs.
+- Update the "Mapped against" line in [upstream-map.md](upstream-map.md) and the "Last verified"
+  line in [tech-debt.md](../plans/tech-debt.md); remove tech-debt entries that upstream fixed.
+- Search for Markdown links to files this fork removed (upstream's `README.md` has them); this
+  should print nothing:
+  ```bash
+  git grep -n -E '\]\([^)]*((BUILDING|GPU_ACCELERATION|building_in_linux|LOCAL_WORKFLOW|LOGGING_OPTIMIZATIONS|NOTIFICATION_TESTING|CLEANUP_PLAN|ACCELERATION_GUIDE|WORKFLOWS_OVERVIEW|README_DEVTEST)\.md|docs/architecture\.md|frontend/API\.md)' -- '*.md'
+  ```
+- `git commit` to finish the merge.
+
+**3. Test, then merge the sync branch**
+
+```bash
+cd frontend && pnpm run tauri:dev               # checks from testing.md, then the smoke test
+git checkout main && git merge sync/upstream-<version>
+./install_local.sh                              # run by you, not by an agent (AGENTS.md rule 9)
+git checkout devtest && git merge main          # keep devtest a superset of main
+```
+
+The checks to run are in [testing.md](testing.md#which-checks-to-run).
 
 ## Database migrations: rules
 

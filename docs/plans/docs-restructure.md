@@ -1,6 +1,6 @@
 # Docs Restructure for AI Agents
 
-**Status:** In progress · Steps 1–10 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
+**Status:** In progress · Steps 1–10 done, step 11 done except the merge to `devtest` · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
 
 Goal: make this repo's documentation work well for any coding agent (Codex, Cursor, Copilot,
 Claude Code, Gemini, ...) and for humans, while keeping original content that still applies.
@@ -66,13 +66,16 @@ docs/
 | `frontend/src-tauri/CLEANUP_PLAN.md` | Delete (already folded into TD-12…TD-17) | `plans/tech-debt.md` |
 | `frontend/src-tauri/LOGGING_OPTIMIZATIONS.md` | Keep usage rules, delete | `development/logging.md` |
 | `frontend/src-tauri/NOTIFICATION_TESTING.md` | Merge, delete | `development/testing.md` |
-| `frontend/src-tauri/templates/README.md` | Stays; list all 6 templates, fix Linux path | — |
+| `frontend/src-tauri/templates/README.md` | Stays; rewritten (all 6 templates, Linux path, loading order, real function names) | — |
 | `.github/workflows/*.md` (3) | Merge, delete; keep Windows portability rules verbatim | `development/ci-release.md` |
 | `docs/LOCAL_WORKFLOW.md` | `git mv` + sync recipe | `development/local-workflow.md` |
 | `docs/UX_IMPROVEMENT_PLAN.md` | `git mv` + status | `plans/ux-improvement.md` |
 | `docs/SPEAKER_DIARIZATION_PLAN.md` | Add + `git mv` + status | `plans/speaker-diarization.md` |
 | `README.md`, `backend/README.md` | Stay; links updated | — |
-| `CONTRIBUTING.md`, `PRIVACY_POLICY.md`, `LICENSE.md`, issue/PR templates, `backend/whisper-custom/server/README.md` | Unchanged | — |
+| `CONTRIBUTING.md` | Stays; fork note added at the top | — |
+| `.github/ISSUE_TEMPLATE/bug_report.md`, `.github/issue_template.md` | Stay; "Browser" replaced by desktop-app environment fields | — |
+| `PRIVACY_POLICY.md`, `LICENSE.md`, PR template, other issue templates, `backend/whisper-custom/server/README.md` | Unchanged | — |
+| (new) `docs/README.md`, `docs/development/upstream-map.md` | Docs index; map of upstream docs for syncs | — |
 
 ## Steps (one commit each, reviewed before the next)
 
@@ -88,7 +91,7 @@ docs/
 8. ✅ `testing.md`, `logging.md`, `recipes.md`; delete merged sources and `frontend/API.md`; fix `RUST_LOG` advice, updater-key and script gaps in earlier guides.
 9. ✅ Plans: common status lines, UX plan `file:line` refs converted to symbols and re-verified, planned migration names fixed, duplicated guardrails replaced by links.
 10. ✅ Small fixes in remaining files: `templates/README.md` (all 6 templates, Linux path, real function names), issue templates (desktop-app environment fields), a fork note at the top of `CONTRIBUTING.md`. Root `README.md`, `PRIVACY_POLICY.md` and the PR template are left as upstream's.
-11. `upstream-map.md`, sync recipe in `local-workflow.md`, `docs/README.md`, link check, cold read of `AGENTS.md`, merge to `devtest`.
+11. ✅ `upstream-map.md`, sync recipe in `local-workflow.md`, `docs/README.md`, link check, cold read of `AGENTS.md`. Pending: merge to `devtest`.
     `devtest` already has the Vietnamese hallucination-filter commits (`fix/vietnamese-hallucination-filter`):
     after the merge, check that `transcription.md` describes the filter (or that the fix branch adds it).
 
