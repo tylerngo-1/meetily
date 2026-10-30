@@ -13,9 +13,10 @@
 3. [And so on...]
 
 ## Environment
-- OS: [e.g., macOS, Windows, Linux]
-- Browser: [e.g., Chrome, Firefox, Safari]
-- Version: [e.g., 1.0.0]
+- OS and version: [e.g., macOS 15.1 (Apple Silicon), Windows 11, Ubuntu 24.04]
+- Meetily version: [e.g., 0.4.1]
+- Installed from: [release installer, source build, or `install_local.sh`]
+- Transcription engine and summary provider: [e.g., Parakeet v3, Ollama]
 
 ## Screenshots
 [If applicable, add screenshots to help explain your problem]

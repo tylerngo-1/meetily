@@ -7,7 +7,7 @@
 #
 # Steps: check git state -> build -> quit Meetily -> back up data and the current
 # app -> install the new app -> tag the commit -> relaunch.
-# See docs/LOCAL_WORKFLOW.md for the full workflow and how to roll back.
+# See docs/development/local-workflow.md for the full workflow and how to roll back.
 
 set -euo pipefail
 

@@ -1,5 +1,8 @@
 # Contributing to Meeting Minutes Updates
 
+> **This repository is a fork.** For work here, follow the Git workflow in [AGENTS.md](AGENTS.md#git-workflow):
+> branch from `main`, merge finished work into `devtest`. The rest of this file describes contributing to upstream.
+
 Thank you for your interest in contributing to Meetily! This document provides guidelines and instructions for contributing to this project.
 
 ## Development Workflow

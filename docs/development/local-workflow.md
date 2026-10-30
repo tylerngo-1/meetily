@@ -22,12 +22,21 @@ upstream/main   official Meetily (Zackriya-Solutions/meetily)
       ▼
 origin/main     this fork: what is installed, or ready to install
       ▲
-      │ merge when tested in the dev app
-enhance/*, fix/*   feature work
+      │ promote when everything on devtest works together
+origin/devtest  integration: what the dev app runs day to day
+      ▲
+      │ merge when the feature is finished
+enhance/*, fix/*, docs/*   feature work, branched from main
 ```
 
-- Never commit directly to `main`.
-- Merge into `main` only after the change works in the dev app.
+- Never commit directly to `main` or `devtest`.
+- Branch features from `main`, not `devtest`, so one unfinished feature never blocks the others.
+- Merge only finished work into `devtest`. Promote `devtest` to `main` after it works in the dev app.
+  If something on `devtest` is not ready, merge the ready feature branches into `main` individually instead.
+- `devtest` must always contain `main`: after every upstream sync, merge `main` into `devtest`.
+- If `devtest` gets messy, reset it with `git checkout -B devtest main` and re-merge the branches still in progress
+  (then `git push --force-with-lease origin devtest`).
+- `upstream/devtest` is unrelated to this fork's `devtest`; only sync from `upstream/main`.
 - Every install tags the commit as `installed/<version>` (local tags, not pushed).
   `git tag -l 'installed/*'` shows the install history; the newest tag is what is installed.
 
@@ -39,6 +48,14 @@ cd frontend
 pnpm run tauri:dev        # hot reload for UI changes; Rust changes rebuild automatically
 ```
 
+When the feature is finished, test it together with the other work in progress:
+
+```bash
+git checkout devtest
+git merge --no-ff enhance/<name>
+cd frontend && pnpm run tauri:dev
+```
+
 Use `./clean_run.sh` only when dependencies changed or the build is in a strange state
 (it reinstalls `node_modules` every time).
 
@@ -46,7 +63,7 @@ Use `./clean_run.sh` only when dependencies changed or the build is in a strange
 
 ```bash
 git checkout main
-git merge enhance/<name>
+git merge devtest              # or a single ready branch: git merge enhance/<name>
 cd frontend && ./install_local.sh
 ```
 
@@ -75,17 +92,49 @@ because every local build has a new ad-hoc signature.
 
 ## Pulling official updates
 
+Run the steps in one shell (they reuse `$OLD`).
+
+**1. Merge upstream into a sync branch**
+
 ```bash
 git checkout main && git checkout -b sync/upstream-<version>
 git fetch upstream
-git merge upstream/main        # resolve conflicts
-cd frontend && pnpm run tauri:dev   # test, especially recording and saving
-git checkout main && git merge sync/upstream-<version>
-./install_local.sh
+OLD=$(git merge-base main upstream/main)        # upstream commit we last synced
+git diff --stat "$OLD" upstream/main            # what upstream changed (read before merging)
+git merge upstream/main                         # then resolve conflicts (step 2)
 ```
 
-Check `frontend/src-tauri/migrations/` after merging: upstream migrations and this fork's
-migrations must all be present, and none of them may be renamed.
+**2. Resolve conflicts and update docs** (in the sync branch)
+
+- **Migrations:** check `frontend/src-tauri/migrations/`. Upstream migrations and this fork's
+  migrations must all be present, and none of them may be renamed.
+- **Docs:** this fork moved and merged most of upstream's docs, so conflicts on upstream doc files
+  are expected. Look each file up in [upstream-map.md](upstream-map.md), apply upstream's change
+  (`git diff "$OLD" upstream/main -- <file>`) to the file named there, then mark the conflict
+  resolved: `git rm <file>` for files we deleted, or `git checkout --ours <file> && git add <file>`
+  for files we rewrote.
+- **Code that our docs describe:** compare `git diff --stat "$OLD" upstream/main` with the
+  "Upstream code changes that make our docs stale" table in [upstream-map.md](upstream-map.md)
+  and update those docs.
+- Update the "Mapped against" line in [upstream-map.md](upstream-map.md) and the "Last verified"
+  line in [tech-debt.md](../plans/tech-debt.md); remove tech-debt entries that upstream fixed.
+- Search for Markdown links to files this fork removed (upstream's `README.md` has them); this
+  should print nothing:
+  ```bash
+  git grep -n -E '\]\([^)]*((BUILDING|GPU_ACCELERATION|building_in_linux|LOCAL_WORKFLOW|LOGGING_OPTIMIZATIONS|NOTIFICATION_TESTING|CLEANUP_PLAN|ACCELERATION_GUIDE|WORKFLOWS_OVERVIEW|README_DEVTEST)\.md|docs/architecture\.md|frontend/API\.md)' -- '*.md'
+  ```
+- `git commit` to finish the merge.
+
+**3. Test, then merge the sync branch**
+
+```bash
+cd frontend && pnpm run tauri:dev               # checks from testing.md, then the smoke test
+git checkout main && git merge sync/upstream-<version>
+./install_local.sh                              # run by you, not by an agent (AGENTS.md rule 9)
+git checkout devtest && git merge main          # keep devtest a superset of main
+```
+
+The checks to run are in [testing.md](testing.md#which-checks-to-run).
 
 ## Database migrations: rules
 

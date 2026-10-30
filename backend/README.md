@@ -17,8 +17,8 @@ current app is a self-contained Tauri desktop application:
 Use these docs for supported setup and development:
 
 - [Top-level README](../README.md)
-- [Building from Source](../docs/BUILDING.md)
-- [Architecture](../docs/architecture.md)
+- [Building from Source](../docs/development/building.md)
+- [Architecture](../docs/architecture/overview.md)
 
 ## Status of This Directory
 

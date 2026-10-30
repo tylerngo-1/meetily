@@ -12,8 +12,8 @@ Next.js UI communicates with the Rust core through Tauri commands and events.
 Use these docs for the supported architecture and build flow:
 
 - [Top-level README](../README.md)
-- [Building from Source](../docs/BUILDING.md)
-- [Architecture](../docs/architecture.md)
+- [Building from Source](../docs/development/building.md)
+- [Architecture](../docs/architecture/overview.md)
 
 ## Security and Support Notice
 
