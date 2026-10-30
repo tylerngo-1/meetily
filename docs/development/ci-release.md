@@ -14,11 +14,16 @@ Windows settings must not be changed separately. For building on your own machin
 - **No workflow can produce installers here as configured.** `tauri.conf.json` sets
   `createUpdaterArtifacts: true` with upstream's updater public key, and every workflow runs
   `tauri build` without `--no-sign`. Without a `TAURI_SIGNING_PRIVATE_KEY` secret the Tauri CLI
-  stops with "A public key has been found, but no private key" (TD-28). A fork key would also not
+  writes the bundles and then fails with "A public key has been found, but no private key", so the
+  job stops before its upload steps (TD-28). A fork key would also not
   match upstream's public key.
-- The app's updater checks upstream's `latest.json`
+- Builds made with the standard `tauri.conf.json` (every workflow) check upstream's `latest.json`
   (`https://github.com/Zackriya-Solutions/meeting-minutes/releases/latest/download/latest.json`),
-  so a release published from this fork would never reach the app's update check.
+  so a release published from this fork would never reach them. The daily app built by
+  `install_local.sh` uses `tauri.local.conf.json` and checks this fork's releases instead, and the
+  fork has published none ([local-workflow.md](local-workflow.md)).
+- Local production builds hit the same signing-key problem; see
+  [building.md](building.md#6-production-builds).
 - This fork's own builds are installed locally with `install_local.sh`; see
   [local-workflow.md](local-workflow.md).
 
@@ -91,6 +96,18 @@ for that platform (and in `build-devtest.yml`); they do not share code.
 - Release outputs: macOS DMG, `.app.tar.gz` (updater) and `.sig`; Windows MSI and NSIS installers
   (signed) and `.sig` files; `latest.json`. Linux is not released; use `build-linux.yml`.
 - Windows MSI needs a numeric version: use `0.1.3`, not `0.1.2-pro-trial`.
+
+### Testing updates locally
+
+Two scripts in the repo-root `scripts/` folder test the update flow without publishing:
+
+1. `node scripts/generate-update-manifest-github.js <version> [bundle-dir] [output-file] [notes]`
+   writes a `latest.json` from local updater bundles, with GitHub release download URLs. Its default
+   bundle folder (`frontend/src-tauri/target/...`) predates the workspace; pass the folder under the
+   root `target/` instead.
+2. `node scripts/test-update-locally.js` serves `latest.json` on `http://localhost:8080/latest.json`.
+3. Point the updater endpoint at that URL in a local config (not in a commit), build an older
+   version and check that it offers the update. Builds need the updater signing key.
 
 ## Secrets
 
@@ -230,7 +247,7 @@ Use a compatible NVIDIA source-build environment with the CUDA toolkit. The stan
 
 | Problem | Check |
 |---|---|
-| Bundling fails with "A public key has been found, but no private key" | No `TAURI_SIGNING_PRIVATE_KEY` secret (always the case in this fork; TD-28) |
+| The build fails after bundling with "A public key has been found, but no private key" | No `TAURI_SIGNING_PRIVATE_KEY` secret (always the case in this fork; TD-28) |
 | Signing fails | All secrets for that platform are set and not expired; read the job log; try once with signing off |
 | Windows MSI fails on the version | Use a numeric version in `tauri.conf.json` (`0.1.3`, not `0.1.2-pro-trial`) |
 | Artifacts are missing | The run succeeded, `upload-artifacts` was on, and the retention period (14 or 30 days) has not passed |

@@ -74,7 +74,7 @@ After that, the normal commands work. Rebuild the sidecar when `llama-helper/` c
 | `pnpm run tauri:build` | Production build with GPU auto-detection |
 | `pnpm run tauri:dev:<feature>` / `tauri:build:<feature>` | Force a feature: `cpu`, `metal`, `coreml`, `cuda`, `vulkan`, `hipblas`, `openblas` |
 | `pnpm run dev` | Next.js UI only at `http://localhost:3118`; every Tauri `invoke` fails in a plain browser |
-| `RUST_LOG=debug pnpm run tauri:dev` | Verbose Rust logs (scope with e.g. `RUST_LOG=app_lib::audio=debug`) |
+| `pnpm run tauri:dev` | Rust logs print to this terminal, `info` and above only; `RUST_LOG` currently has no effect ([logging.md](logging.md), TD-32) |
 
 Tauri runs `pnpm dev` (port 3118) before `tauri dev`, and `pnpm build` (static export to
 `frontend/out`) before `tauri build`.
@@ -201,6 +201,18 @@ Bundles are written to `target/release/bundle/` at the **repository root** (the 
 root), one folder per target in `tauri.conf.json`: `macos/` (`meetily.app`) and `dmg/`; `msi/` and `nsis/`;
 `deb/` and `appimage/`.
 
+- **Updater signing key:** `tauri.conf.json` turns on updater artifacts (`createUpdaterArtifacts`), so
+  the build fails (exit code 1) with "A public key has been found, but no private key" unless
+  `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) is set. This fork has no
+  key (TD-28). The bundles are written first, but the command still fails, so scripts stop there.
+  `pnpm run tauri:build` and `build-gpu.sh` do not pass extra arguments on, so for a
+  local build without a key call the Tauri CLI directly with the config `install_local.sh` uses,
+  which turns updater artifacts off (build the sidecar first, see [First build](#2-first-build)):
+  ```bash
+  pnpm tauri build --config src-tauri/tauri.local.conf.json            # add -- --features <feature> if needed
+  ```
+  To use a key instead, copy `frontend/.env.example` to `frontend/.env` (gitignored); `build.ps1`
+  loads it on Windows.
 - Linux: `NO_STRIP=true` prevents runtime errors caused by stripped symbols in the AppImage.
 - To install a build over the daily-use app on this fork's Mac, use `install_local.sh` as described
   in [local-workflow.md](local-workflow.md#installing-to-the-daily-app); do not copy bundles by hand.
@@ -222,10 +234,12 @@ All in `frontend/`.
 |---|---|---|---|
 | `dev-gpu.sh` / `dev-gpu.bat` | GPU detection + debug sidecar + `tauri:dev` | Yes (debug) | Recommended first run. `.sh` is macOS/Linux only |
 | `build-gpu.sh` / `build-gpu.bat` | GPU detection + release sidecar + `tauri:build` | Yes (release) | `.sh` sets `NO_STRIP=true` |
-| `clean_run.sh [log level]` | `pnpm install`, then `tauri dev` with the dev config, no GPU feature | No | macOS/Linux; `RUST_LOG` from the argument |
+| `clean_run.sh [log level]` | `pnpm install`, then `tauri dev` with the dev config, no GPU feature | No | macOS/Linux; the log level sets `RUST_LOG`, which has no effect (TD-32) |
 | `clean_build.sh [log level]` | Installs CMake via Homebrew if missing, cleans, `pnpm install`, `tauri build` | No | macOS; deletes `src-tauri/target`, which is no longer the build folder (TD-25) |
 | `clean_run_windows.bat` / `clean_build_windows.bat` | `tauri dev` (dev config) / `tauri build` | No | Windows |
 | `build.bat` | Sets environment, then `tauri:dev:vulkan` or `tauri:build:vulkan` | No | Windows |
+| `dev-gpu.ps1` / `build-gpu.ps1` | PowerShell: run `tauri:dev:vulkan` / `tauri:build:vulkan` | No | Windows |
+| `build.ps1` | Loads signing variables from `frontend/.env` (via `scripts/load-env.ps1`) if not set, then runs `build-gpu.bat` | Yes (via `build-gpu.bat`) | Windows signed build; needs `TAURI_SIGNING_PRIVATE_KEY` |
 | `build_backup.bat`, `package-app.sh` | Older build scripts | No | Stale (TD-25) |
 | `install_local.sh` | Builds and installs over `/Applications/meetily.app` with backups | No | This fork's daily-use install; never run without being asked |
 

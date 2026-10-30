@@ -209,7 +209,7 @@ export interface MeetingDraft {
 **Acceptance criteria**
 - Speaking into the mic moves the Mic meter; playing system audio moves the System meter; silence shows flat meters.
 - Event rate ≤ 10/s (verify with a console counter in dev).
-- No measurable change in transcription latency or dropped-chunk warnings (`RUST_LOG=app_lib::audio=debug`).
+- No measurable change in transcription latency or dropped-chunk warnings (`RUST_LOG=app_lib::audio=debug` once TD-32 is fixed; until then only `info` and above print).
 - If 1b is deferred, 1a must still ship and the random bars must at minimum be static (not animated) when paused.
 
 ---

@@ -64,9 +64,10 @@ Dead files are listed in the root `AGENTS.md` (rule 3). Search results inside th
 
 - Use the `log` crate (`log::info!`, ...; `api.rs` aliases them as `log_info!` etc.). No `println!`.
 - In hot paths (audio callbacks, pipeline, transcription loops) use `perf_debug!` / `perf_trace!`
-  (compiled out in release) or the non-blocking `async_debug!`/`async_info!`/`async_warn!`
-  (`audio/async_logger.rs`). Aggregate per-chunk metrics with `AudioMetricsBatcher`
-  (`audio/batch_processor.rs`) instead of logging every chunk.
+  (compiled out in release). Aggregate per-chunk metrics with `AudioMetricsBatcher`
+  (`audio/batch_processor.rs`) instead of logging every chunk; rate-limit repeated warnings.
+- Only `info` and above print today, even in dev; `RUST_LOG` is overridden in `main.rs` (TD-32).
+  Setup and full rules: [docs/development/logging.md](../../docs/development/logging.md).
 - Do not add logs that contain transcript text, audio content or API keys at `info` or above
   (logs end up in bug reports). Some existing code still logs transcript text (TD-18).
 

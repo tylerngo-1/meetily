@@ -53,7 +53,8 @@ pnpm run dev                     # Next.js UI only, http://localhost:3118; every
   The first Rust build also downloads `ffmpeg` (`build.rs`), so it needs network access.
 - **GPU:** `TAURI_GPU_FEATURE=<feature> pnpm run tauri:dev` forces a backend; `none` forces CPU.
   Explicit scripts also exist: `pnpm run tauri:dev:<feature>` for `cpu|metal|coreml|cuda|vulkan|hipblas|openblas`.
-- **Logs:** `RUST_LOG=debug pnpm run tauri:dev`, or scope it: `RUST_LOG=app_lib::audio=debug`.
+- **Logs:** Rust logs print to the `tauri:dev` terminal, `info` and above only; `RUST_LOG` currently
+  has no effect (TD-32). Details: [docs/development/logging.md](docs/development/logging.md).
 - Dev builds use the app identifier `com.meetily.ai.dev` and their own data folder, so they never
   touch the installed app's data.
 
@@ -111,10 +112,9 @@ cargo test --lib                         # any Rust change
   (TD-03). Any other failure is new.
 - `pnpm run lint` is **not usable** (no ESLint config; it opens an interactive prompt). Do not run it.
 - There is no CI for tests; these local checks are the only safety net.
-- For changes to recording, the sidebar or meeting details, also run the manual smoke test:
-  start a recording from the home screen and from the sidebar, speak ~30 s and confirm the live
-  transcript, pause → resume → stop, confirm the meeting opens and its summary generates, restart
-  the app and confirm the meeting persists.
+- For changes to recording, the sidebar or meeting details, also run the
+  [manual smoke test](docs/development/testing.md#manual-smoke-test) in the dev app.
+- Which checks apply to which change, test data and debugging: [docs/development/testing.md](docs/development/testing.md).
 
 ## Git workflow
 
@@ -139,8 +139,9 @@ cargo test --lib                         # any Rust change
 | Data locations, database tables, migrations, legacy import | [docs/architecture/data-storage.md](docs/architecture/data-storage.md) |
 | Building from source, GPU acceleration, build scripts | [docs/development/building.md](docs/development/building.md) |
 | Daily-use vs dev app, installing, rollback, upstream sync | [docs/development/local-workflow.md](docs/development/local-workflow.md) |
-| Logging rules | [frontend/src-tauri/LOGGING_OPTIMIZATIONS.md](frontend/src-tauri/LOGGING_OPTIMIZATIONS.md) |
-| Notification testing | [frontend/src-tauri/NOTIFICATION_TESTING.md](frontend/src-tauri/NOTIFICATION_TESTING.md) |
+| Testing, test data, debugging, notification testing | [docs/development/testing.md](docs/development/testing.md) |
+| Logging setup and rules | [docs/development/logging.md](docs/development/logging.md) |
+| Checklists for common changes (commands, migrations, settings, providers, ...) | [docs/development/recipes.md](docs/development/recipes.md) |
 | Summary templates | [frontend/src-tauri/templates/README.md](frontend/src-tauri/templates/README.md) |
 | CI and release workflows, Windows portability rules | [docs/development/ci-release.md](docs/development/ci-release.md) |
 | Known problems | [docs/plans/tech-debt.md](docs/plans/tech-debt.md) |

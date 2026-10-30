@@ -4,9 +4,10 @@ Meetily is a self-contained desktop application built with [Tauri](https://tauri
 
 There is no separate server: audio capture, transcription, storage and summary orchestration all run
 inside the Tauri process. The app's own network traffic is limited to model downloads (Hugging Face
-and the upstream project's model mirror), the update check (upstream's GitHub releases; see
-[local-workflow.md](../development/local-workflow.md) before accepting an update), opt-in analytics
-(PostHog), and calls to the LLM provider the user selects (a local Ollama server or a cloud API).
+and the upstream project's model mirror), the update check (upstream's GitHub releases for standard
+builds, this fork's releases for the daily app built by `install_local.sh`; see
+[local-workflow.md](../development/local-workflow.md)), opt-in analytics (PostHog), and calls to the
+LLM provider the user selects (a local Ollama server or a cloud API).
 
 ## High-Level Architecture Diagram
 

@@ -1,6 +1,6 @@
 # Docs Restructure for AI Agents
 
-**Status:** In progress · Steps 1–7 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
+**Status:** In progress · Steps 1–8 done · **Branch:** `enhance/docs-organization` · **Started:** 2026-10-29
 
 Goal: make this repo's documentation work well for any coding agent (Codex, Cursor, Copilot,
 Claude Code, Gemini, ...) and for humans, while keeping original content that still applies.
@@ -61,7 +61,8 @@ docs/
 | `docs/architecture.md` | `git mv`, then expand | `architecture/overview.md` |
 | `docs/BUILDING.md`, `docs/building_in_linux.md`, `docs/GPU_ACCELERATION.md` | Merge, delete | `development/building.md` |
 | `frontend/README.md` | Setup merged; shrunk to pointer; drop false "speaker diarization" | `development/building.md` |
-| `frontend/API.md`, `backend/API_DOCUMENTATION.md`, `backend/SCRIPTS_DOCUMENTATION.md` | Delete (archive stubs) | — |
+| `frontend/API.md` | Delete (archive stub) | — |
+| `backend/API_DOCUMENTATION.md`, `backend/SCRIPTS_DOCUMENTATION.md` | Keep (archive notes; `backend/` is not modified beyond link fixes) | — |
 | `frontend/src-tauri/CLEANUP_PLAN.md` | Delete (already folded into TD-12…TD-17) | `plans/tech-debt.md` |
 | `frontend/src-tauri/LOGGING_OPTIMIZATIONS.md` | Keep usage rules, delete | `development/logging.md` |
 | `frontend/src-tauri/NOTIFICATION_TESTING.md` | Merge, delete | `development/testing.md` |
@@ -84,9 +85,9 @@ docs/
 5. ✅ `docs/architecture/*` (overview, audio-pipeline, transcription, summarization, data-storage).
 6. ✅ `development/building.md`; delete merged sources; shrink `frontend/README.md`; update `README.md` links.
 7. ✅ `development/ci-release.md`; delete `.github/workflows/*.md`.
-8. `testing.md`, `logging.md`, `recipes.md`; delete merged sources and stubs.
+8. ✅ `testing.md`, `logging.md`, `recipes.md`; delete merged sources and `frontend/API.md`; fix `RUST_LOG` advice, updater-key and script gaps in earlier guides.
 9. Plans: status lines (UX plan status done early in step 2c), remaining UX plan updates (optional: convert `file:line` refs to symbols).
-10. Small fixes in remaining files (`templates/README.md`, links).
+10. Small fixes in remaining files (`templates/README.md`, links). `CONTRIBUTING.md` (upstream) says to branch from `devtest`; this fork branches from `main`: decide whether to note it or leave it.
 11. `upstream-map.md`, sync recipe in `local-workflow.md`, `docs/README.md`, link check, cold read of `AGENTS.md`, merge to `devtest`.
 
 ---

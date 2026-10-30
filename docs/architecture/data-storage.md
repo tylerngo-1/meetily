@@ -20,7 +20,7 @@ Paths in code references are relative to `frontend/src-tauri/` unless they start
 | Whisper models | `<app data>/models/ggml-*.bin` | `src/whisper_engine/commands.rs` |
 | Parakeet models | `<app data>/models/parakeet/` | `src/parakeet_engine/commands.rs` |
 | Built-in AI models | `<app data>/models/summary/` | `src/summary/summary_engine/model_manager.rs` |
-| Preference stores (`tauri-plugin-store`) | `<app data>/recording_preferences.json`, `onboarding-status.json` | `src/audio/recording_preferences.rs`, `src/onboarding.rs` |
+| Preference stores (`tauri-plugin-store`) | `<app data>/recording_preferences.json`, `onboarding-status.json` (Rust); `preferences.json`, `analytics.json` (opened from the UI) | `src/audio/recording_preferences.rs`, `src/onboarding.rs`; `frontend/src/components/RecordingSettings.tsx`, `frontend/src/components/AnalyticsProvider.tsx` |
 | Recordings | Default: macOS `~/Movies/meetily-recordings`, Windows `Music\meetily-recordings`, Linux `~/Documents/meetily-recordings`; changeable in Settings | `src/audio/recording_preferences.rs` |
 | Custom summary templates | `dirs::data_dir()/Meetily/templates/` (macOS `~/Library/Application Support/Meetily/templates/`, Windows `%APPDATA%\Meetily\templates\`, Linux `~/.local/share/Meetily/templates/`) | `src/summary/templates/loader.rs` |
 | Notification settings | `dirs::config_dir()/meetily/notifications.json` | `src/notifications/settings.rs` |

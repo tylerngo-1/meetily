@@ -120,15 +120,20 @@ or hides bugs. **Low** = cleanup.
 - **Fix:** Decide per patch: move it to the root `Cargo.toml` (changes `Cargo.lock`, needs audio
   testing on all platforms) or delete it. Upstream has the same issue.
 
-### TD-28 · CI cannot produce installers in this fork · Medium
+### TD-28 · CI and local production builds cannot bundle without an updater key · Medium
 - **Evidence:** `tauri.conf.json` sets `createUpdaterArtifacts: true` with upstream's updater
-  `pubkey`; no workflow passes `--no-sign`. The Tauri CLI (2.11.1) stops with "A public key has been
-  found, but no private key" when `TAURI_SIGNING_PRIVATE_KEY` is unset, and this fork has no secrets.
+  `pubkey`; no workflow passes `--no-sign`. Without `TAURI_SIGNING_PRIVATE_KEY` the Tauri CLI (2.11.1) writes
+  the bundles, then fails (exit code 1) with "A public key has been found, but no private key"
+  (reproduced locally on 2026-10-30 with `pnpm tauri build --bundles app`). This fork has no secrets.
   The updater endpoint is upstream's `latest.json`.
-- **Impact:** Every workflow, including DevTest with signing off, fails at bundling here. A fork key
-  would not match upstream's public key, and fork releases would never reach the app's update check.
-- **Fix:** For CI artifacts only, pass `--no-sign` (or disable updater artifacts) when no key is set.
-  For fork releases, generate a fork key pair, replace `pubkey` and the endpoint, and add the secrets.
+- **Impact:** Every workflow, including DevTest with signing off, fails at bundling here. Locally,
+  `pnpm run tauri:build` and `build-gpu.sh`/`.bat` fail the same way without a key; only
+  `install_local.sh` works, because `tauri.local.conf.json` turns updater artifacts off. A fork key
+  would not match upstream's public key, and fork releases would never reach standard builds' update check.
+- **Current workaround:** build locally with `pnpm tauri build --config src-tauri/tauri.local.conf.json`
+  (`pnpm run tauri:build` and `build-gpu.sh` drop extra arguments).
+- **Fix:** For CI artifacts and local builds, pass `--no-sign` (or disable updater artifacts) when no
+  key is set. For fork releases, generate a fork key pair, replace `pubkey` and the endpoint, and add the secrets.
 
 ### TD-29 · Windows `llama-helper` sidecar is built differently per workflow · Medium
 - **Evidence:** `build-devtest.yml` builds it with `--features vulkan`; `build.yml` (used by
@@ -148,6 +153,15 @@ or hides bugs. **Low** = cleanup.
   Tauri build in the workflows, but no code in `frontend/` or `llama-helper/` reads them.
 - **Impact:** Misleading: they look required, and the old workflow docs listed them as required.
 - **Fix:** Remove them from all workflows together, so upstream syncs stay simple.
+
+### TD-33 · `inject_transcript.py` has a wrong default database path · Low
+- **Evidence:** `scripts/inject_transcript.py` defaults to `~/Library/Application Support/Meetily/`
+  (macOS), `%APPDATA%\Meetily\` (Windows) and `~/.config/Meetily/` (Linux); the app uses
+  `app_data_dir()` (`com.meetily.ai` or `com.meetily.ai.dev`). Its default bundle path in
+  `scripts/generate-update-manifest-github.js` (`frontend/src-tauri/target/...`) is also stale.
+- **Impact:** Without `--db` the injector fails or writes to a stray file. Fixing the default to
+  `com.meetily.ai` would make it write into the daily app's database by default.
+- **Fix:** Default to the dev database (`com.meetily.ai.dev`), or require `--db`.
 
 ---
 
@@ -207,6 +221,8 @@ These files are not compiled (verified against the compiler's dependency file fo
   `api/api.rs` (1383), `audio/import.rs` (1323).
 - The old plan's "20+ TODOs" were almost all in the dead `audio_v2/`; only 4 TODO/FIXME remain
   in compiled code.
+- No dependency audit has been done. Known: `tauri-plugin-log` is a dependency but never
+  registered; `ffmpeg-sidecar` tracks a git `branch = "main"` (pinned only by `Cargo.lock`).
 
 ### TD-18 · Transcript text is logged at `info` level · Low
 - **Evidence:** `whisper_engine/whisper_engine.rs` logs `Transcription #N result: '...'` and
@@ -258,3 +274,22 @@ These files are not compiled (verified against the compiler's dependency file fo
   gets the keys. `install_local.sh` backups also contain them.
 - **Fix:** Move keys to the OS keychain (e.g. the `keyring` crate) with a migration that copies and
   then clears the columns.
+
+### TD-32 · `RUST_LOG` is ignored; debug logs never print · Medium
+- **Evidence:** `main.rs` calls `std::env::set_var("RUST_LOG", "info")` before `env_logger::init()`,
+  and `run()` in `lib.rs` calls `log::set_max_level(log::LevelFilter::Info)`. On Windows,
+  `console_utils::show_console` calls `env_logger::init()` a second time when it allocates a
+  console, which panics according to `env_logger`'s documentation (not reproduced here).
+- **Impact:** `RUST_LOG=debug`, module filters and `clean_run.sh debug` do nothing; every
+  `perf_debug!`/`perf_trace!` line is invisible even in dev, so hot-path debugging has no output.
+- **Fix:** Set `RUST_LOG=info` only when it is unset, remove the `set_max_level` cap (or derive it
+  from the filter), and use `try_init()` in `show_console`. Then update `logging.md`, the root
+  `AGENTS.md` and `building.md`.
+
+### TD-34 · Audio metric summaries are collected but never used · Low
+- **Evidence:** `audio/pipeline.rs` feeds every chunk to `AudioMetricsBatcher`
+  (`audio/batch_processor.rs`), which stores a summary every 50 chunks or 5 seconds in a `Vec`.
+  Nothing calls `get_summaries` or `clear_summaries`. The `async_*!` macros in
+  `audio/async_logger.rs` are also unused.
+- **Impact:** Work per chunk and a list that grows for the whole recording, with no output.
+- **Fix:** Log the summaries at `debug` (after TD-32) and clear them, or remove the batcher.

@@ -119,7 +119,7 @@ audio/
 ├── device_monitor.rs, playback_monitor.rs, device_detection.rs, permissions.rs
 ├── level_monitor.rs, simple_level_monitor.rs   settings level meters
 ├── ffmpeg.rs, ffmpeg_mixer.rs, encode.rs, decoder.rs   ffmpeg sidecar, RNNoise flag, encoding/decoding
-├── async_logger.rs, batch_processor.rs   non-blocking logging, metrics batching
+├── async_logger.rs, batch_processor.rs   non-blocking logging (unused), metrics batching
 └── buffer_pool.rs, common.rs, constants.rs, diagnostics.rs, hardware_detector.rs, system_detector.rs, ...
 ```
 
@@ -128,9 +128,11 @@ Not compiled (do not edit): `core-old.rs`, `recording_saver_old.rs`, `recording_
 
 ## Debugging
 
-- Verbose audio logs: `RUST_LOG=app_lib::audio=debug pnpm run tauri:dev` (from `frontend/`).
-- Per-chunk metrics are batched (`AudioMetricsBatcher`); the pipeline logs a summary every 200
-  chunks or 60 seconds.
+- Audio logs print (`info` and above) in the terminal running `pnpm run tauri:dev`. `RUST_LOG` (e.g.
+  `app_lib::audio=debug`) has no effect until TD-32 is fixed; see [logging.md](../development/logging.md).
+- Per-chunk metrics are batched (`AudioMetricsBatcher`), but nothing reads the summaries yet (TD-34).
+  The pipeline's own summary every 200 chunks or 60 seconds is a `perf_debug!` line, so it does not
+  print today.
 - Watch for `recording-error` events in the UI console. (The UI also listens for
   `chunk-drop-warning`, but nothing in the live Rust code emits it; TD-23.)
 
