@@ -454,6 +454,7 @@ impl WhisperEngine {
             "subscribe cho kênh",
             "không bỏ lỡ những video hấp dẫn",
             "không bỏ lỡ những tin tức hấp dẫn",
+            "đăng ký kênh để ủng hộ kênh",
         ];
 
         for pattern in &meaningless_patterns {
@@ -1816,6 +1817,8 @@ mod tests {
             "Hãy subscribe cho kênh Ghiền Mì Gõ để không bỏ lỡ những tin tức hấp dẫn",
             "Hãy subscribe cho kênh Ghiền Mì Gõ Để không bỏ lỡ những video hấp dẫn",
             "HÃY SUBSCRIBE CHO KÊNH GHIỀN MÌ GÕ",
+            "Các bạn hãy đăng ký kênh để ủng hộ kênh của chúng mình nhé.",
+            "Các bạn hãy đăng ký kênh để ủng hộ kênh của mình nhé.",
             "Hãy subscribe cho kênh La La School để không bỏ lỡ những video hấp dẫn",
             "Điều này đi xem video, hãy subscribe cho kênh Ghiền Mì Gõ Để không bỏ lỡ những video hấp dẫn",
         ] {
@@ -1829,6 +1832,7 @@ mod tests {
             "Chúng ta sẽ chốt kế hoạch triển khai vào thứ sáu",
             "Cảm ơn các bạn đã tham gia buổi họp hôm nay",
             "Mình cần đăng ký thêm tài khoản cho đội kinh doanh",
+            "Các bạn hãy đăng ký tham gia buổi đào tạo vào tuần sau nhé",
             "Để không bỏ lỡ những gì thì mình biết em chứ",
         ] {
             assert_eq!(WhisperEngine::clean_repetitive_text(speech), speech);
