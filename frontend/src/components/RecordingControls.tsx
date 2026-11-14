@@ -27,6 +27,8 @@ interface RecordingControlsProps {
     systemDevice: string | null;
   };
   meetingName?: string;
+  /** Bookmarks what was just said; shown as a button while recording. */
+  onBookmark?: () => void;
 }
 
 export const RecordingControls: React.FC<RecordingControlsProps> = ({
@@ -40,6 +42,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   isParentProcessing,
   selectedDevices,
   meetingName,
+  onBookmark,
 }) => {
   // Use global recording state context for pause state (syncs with tray operations)
   const recordingState = useRecordingState();
@@ -352,6 +355,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
               Analytics.trackButtonClick('stop_recording', 'recording_controls');
               handleStopRecording();
             }}
+            onBookmark={onBookmark}
           />
         ) : (
           <div className="flex items-center space-x-2 bg-white rounded-full shadow-lg p-2">

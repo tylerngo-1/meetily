@@ -1,6 +1,6 @@
 'use client';
 
-import { Pause, Play, Square } from 'lucide-react';
+import { Bookmark, Pause, Play, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FakeWaveform } from '@/components/FakeWaveform';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
@@ -16,6 +16,8 @@ interface RecordingControlBarProps {
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
+  /** Bookmarks what was just said. The button is hidden when not provided. */
+  onBookmark?: () => void;
 }
 
 // Own component so the 250ms timer tick re-renders only this span.
@@ -37,7 +39,7 @@ function ElapsedTime({ isPaused }: { isPaused: boolean }) {
 /**
  * RecordingControlBar
  *
- * Card shown while recording: waveform, elapsed time, Pause/Resume and Stop.
+ * Card shown while recording: waveform, elapsed time, Bookmark, Pause/Resume and Stop.
  */
 export function RecordingControlBar({
   isPaused,
@@ -48,6 +50,7 @@ export function RecordingControlBar({
   onPause,
   onResume,
   onStop,
+  onBookmark,
 }: RecordingControlBarProps) {
   const pauseLabel = isPausing ? 'Pausing…' : isResuming ? 'Resuming…' : isPaused ? 'Resume' : 'Pause';
 
@@ -56,6 +59,17 @@ export function RecordingControlBar({
       <FakeWaveform isPaused={isPaused} />
       <ElapsedTime isPaused={isPaused} />
       <div className="flex items-center gap-2">
+        {onBookmark && (
+          <Button
+            variant="ghost"
+            onClick={onBookmark}
+            aria-label="Bookmark what was just said"
+            title="Bookmark what was just said (⌘B)"
+            className="h-10 w-10 rounded-lg bg-gray-100 p-0 text-gray-900 hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <Bookmark />
+          </Button>
+        )}
         <Button
           variant="ghost"
           onClick={isPaused ? onResume : onPause}

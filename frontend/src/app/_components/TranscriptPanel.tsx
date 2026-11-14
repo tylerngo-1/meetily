@@ -2,7 +2,8 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { PermissionWarning } from '@/components/PermissionWarning';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, GlobeIcon } from 'lucide-react';
+import { Copy, GlobeIcon, NotebookPen } from 'lucide-react';
+import type { SegmentMark } from '@/lib/note-anchors';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
@@ -24,13 +25,26 @@ interface TranscriptPanelProps {
   isProcessingStop: boolean;
   isStopping: boolean;
   showModal: (name: ModalType, message?: string) => void;
+  /** True when the notes pane is shown next to the transcript (narrower column). */
+  isSplit?: boolean;
+  /** Notes pane toggle, shown while recording. */
+  notesOpen?: boolean;
+  onToggleNotes?: () => void;
+  segmentMarks?: Map<string, { mark: SegmentMark }>;
+  focusRequest?: { segmentId: string; nonce: number } | null;
 }
 
 export function TranscriptPanel({
   isProcessingStop,
   isStopping,
-  showModal
+  showModal,
+  isSplit = false,
+  notesOpen = false,
+  onToggleNotes,
+  segmentMarks,
+  focusRequest,
 }: TranscriptPanelProps) {
+  const columnClass = isSplit ? 'w-full max-w-[750px] px-2' : 'w-2/3 max-w-[750px]';
   // Contexts
   const { transcripts, transcriptContainerRef, copyTranscript } = useTranscripts();
   const { transcriptModelConfig } = useConfig();
@@ -57,7 +71,7 @@ export function TranscriptPanel({
         <div className="flex flex-col space-y-3">
           <div className="flex  flex-col space-y-2">
             <div className={isRecording
-              ? 'mx-auto flex w-2/3 max-w-[750px] items-center gap-3'
+              ? `mx-auto flex ${columnClass} items-center gap-3`
               : 'flex justify-center  items-center space-x-2'}
             >
               {isRecording && <RecordingHeader />}
@@ -72,6 +86,20 @@ export function TranscriptPanel({
                     <Copy />
                     <span className='hidden md:inline'>
                       Copy
+                    </span>
+                  </Button>
+                )}
+                {isRecording && onToggleNotes && !notesOpen && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onToggleNotes}
+                    aria-pressed={notesOpen}
+                    title="Show notes (⌘J)"
+                  >
+                    <NotebookPen />
+                    <span className='hidden md:inline'>
+                      Notes
                     </span>
                   </Button>
                 )}
@@ -109,7 +137,7 @@ export function TranscriptPanel({
       {/* Transcript content */}
       <div className="pb-40">
         <div className="flex justify-center">
-          <div className="w-2/3 max-w-[750px]">
+          <div className={columnClass}>
             <VirtualizedTranscriptView
               segments={segments}
               isRecording={isRecording}
@@ -118,6 +146,8 @@ export function TranscriptPanel({
               isStopping={isStopping}
               enableStreaming={isRecording}
               showConfidence={true}
+              segmentMarks={segmentMarks}
+              focusRequest={focusRequest}
             />
           </div>
         </div>

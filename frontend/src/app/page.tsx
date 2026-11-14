@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { RecordingControls } from '@/components/RecordingControls';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
@@ -20,6 +20,21 @@ import { TranscriptRecovery } from '@/components/TranscriptRecovery';
 import { indexedDBService } from '@/services/indexedDBService';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { LiveNotesPanel, type LiveNotesPanelHandle } from '@/components/LiveNotes/LiveNotesPanel';
+import { useLiveNotes } from '@/hooks/useLiveNotes';
+import { useResizableSplit } from '@/hooks/useResizableSplit';
+import { segmentsForRange } from '@/lib/note-anchors';
+import type { NoteEntryInput } from '@/services/meetingNotesService';
+
+const NOTES_OPEN_KEY = 'meetily.recording.notesOpen';
+
+function readNotesOpen(): boolean {
+  try {
+    return localStorage.getItem(NOTES_OPEN_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
 
 export default function Home() {
   // Local page state (not moved to contexts)
@@ -59,6 +74,73 @@ export default function Home() {
   } = useTranscriptRecovery();
 
   const router = useRouter();
+
+  // Live notes (docs/plans/meeting-prep-and-live-notes.md, section 6)
+  const liveNotes = useLiveNotes();
+  const notesPanelRef = useRef<LiveNotesPanelHandle>(null);
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number } | null>(null);
+  const split = useResizableSplit({
+    storageKey: 'meetily.recording.transcriptPaneRatio',
+    defaultRatio: 0.6,
+    minRatio: 0.45,
+    maxRatio: 0.75,
+    label: 'Resize transcript and notes',
+    firstPaneName: 'Transcript',
+  });
+  const showNotes = recordingState.isRecording && notesOpen;
+  const isSplit = showNotes && split.isDesktop;
+
+  useEffect(() => setNotesOpen(readNotesOpen()), []);
+
+  const toggleNotes = useCallback(() => {
+    setNotesOpen((open) => {
+      try {
+        localStorage.setItem(NOTES_OPEN_KEY, String(!open));
+      } catch {
+        // Remembering the pane state is optional.
+      }
+      return !open;
+    });
+  }, []);
+
+  const handleBookmark = useCallback(async () => {
+    if (!recordingState.isRecording) return;
+    Analytics.trackButtonClick('bookmark', 'recording_controls');
+    const id = await liveNotes.addBookmark();
+    const panel = notesPanelRef.current;
+    if (panel && !panel.isComposing()) panel.editEntry(id);
+    else if (!panel) toast.success('Bookmarked', { duration: 1500 });
+  }, [recordingState.isRecording, liveNotes]);
+
+  const handleJumpToEntry = useCallback((entry: NoteEntryInput) => {
+    if (entry.startMs === null) return;
+    const range = { startMs: entry.startMs, endMs: entry.endMs ?? entry.startMs };
+    const [segment] = segmentsForRange(range, liveNotes.anchorSegments);
+    if (!segment) {
+      toast.info('No transcript at that time yet');
+      return;
+    }
+    if (!split.isDesktop) setNotesOpen(false); // single pane: show the transcript
+    setFocusRequest({ segmentId: segment.id, nonce: Date.now() });
+  }, [liveNotes.anchorSegments, split.isDesktop]);
+
+  // ⌘B / Ctrl+B bookmarks, ⌘J / Ctrl+J toggles the notes pane, while recording.
+  useEffect(() => {
+    if (!recordingState.isRecording) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.repeat) return;
+      if (e.code === 'KeyB') {
+        e.preventDefault();
+        void handleBookmark();
+      } else if (e.code === 'KeyJ') {
+        e.preventDefault();
+        toggleNotes();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [recordingState.isRecording, handleBookmark, toggleNotes]);
 
   useEffect(() => {
     // Track page view
@@ -190,24 +272,70 @@ export default function Home() {
         onLoadPreview={loadMeetingTranscripts}
       />
       <div className="flex flex-1 overflow-hidden">
-        <TranscriptPanel
-          isProcessingStop={isProcessingStop}
-          isStopping={isStopping}
-          showModal={showModal}
-        />
+        <div
+          ref={split.containerRef}
+          className="flex min-w-0 flex-1"
+          style={{ '--transcript-pane-width': `${split.ratio * 100}%` } as CSSProperties}
+          {...(isSplit ? split.containerHandlers : {})}
+        >
+          <div
+            className={
+              isSplit ? 'flex min-w-0 flex-none w-[var(--transcript-pane-width)]'
+              : showNotes ? 'hidden'
+              : 'flex min-w-0 flex-1'
+            }
+          >
+            <TranscriptPanel
+              isProcessingStop={isProcessingStop}
+              isStopping={isStopping}
+              showModal={showModal}
+              isSplit={isSplit}
+              notesOpen={showNotes}
+              onToggleNotes={toggleNotes}
+              segmentMarks={liveNotes.segmentMarks}
+              focusRequest={focusRequest}
+            />
+          </div>
+          {isSplit && (
+            <div
+              {...split.separatorProps}
+              className="group relative z-10 flex w-2 flex-shrink-0 cursor-col-resize items-stretch justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+            >
+              <div className="h-full w-px bg-gray-200 transition-[width,background-color] duration-150 ease-out group-hover:w-1 group-hover:bg-blue-400 group-active:w-1 group-active:bg-blue-500" />
+            </div>
+          )}
+          {showNotes && (
+            <div className={`flex min-w-0 flex-1 flex-col ${isSplit ? '' : 'pb-32'}`}>
+              <LiveNotesPanel
+                ref={notesPanelRef}
+                liveNotes={liveNotes}
+                onJumpToEntry={handleJumpToEntry}
+                onClose={toggleNotes}
+              />
+            </div>
+          )}
+        </div>
 
         {/* Recording controls - only show when permissions are granted or already recording and not showing status messages */}
         {(hasMicrophone || isRecording) &&
           status !== RecordingStatus.PROCESSING_TRANSCRIPTS &&
           status !== RecordingStatus.SAVING && (
-            <div className="fixed bottom-12 left-0 right-0 z-10">
+            <div
+              className="fixed bottom-12 left-0 z-10 transition-[right] duration-300"
+              style={{
+                // Centered under the transcript; the notes pane keeps its own composer clear.
+                right: isSplit
+                  ? `calc((100vw - ${sidebarCollapsed ? '4rem' : '16rem'}) * ${1 - split.ratio})`
+                  : 0,
+              }}
+            >
               <div
                 className="flex justify-center pl-8 transition-[margin] duration-300"
                 style={{
                   marginLeft: sidebarCollapsed ? '4rem' : '16rem'
                 }}
               >
-                <div className="w-2/3 max-w-[750px] flex justify-center">
+                <div className={`${isSplit ? 'w-full px-4' : 'w-2/3'} max-w-[750px] flex justify-center`}>
                   <RecordingControls
                     isRecording={recordingState.isRecording}
                     onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}
@@ -221,6 +349,7 @@ export default function Home() {
                     isParentProcessing={isProcessingStop}
                     selectedDevices={selectedDevices}
                     meetingName={meetingTitle}
+                    onBookmark={() => void handleBookmark()}
                   />
                 </div>
               </div>

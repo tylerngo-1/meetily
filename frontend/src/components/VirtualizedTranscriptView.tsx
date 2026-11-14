@@ -9,6 +9,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { formatTimestamp } from "@/lib/format-duration";
 import { motion } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { Bookmark, StickyNote } from "lucide-react";
+import type { SegmentMark } from "@/lib/note-anchors";
+
+const FLASH_MS = 1600;
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -27,6 +31,10 @@ export interface VirtualizedTranscriptViewProps {
     showConfidence?: boolean;
     /** Completely disable auto-scroll behavior (for meeting details page) */
     disableAutoScroll?: boolean;
+    /** Segments that notes or bookmarks point at, keyed by segment id */
+    segmentMarks?: Map<string, { mark: SegmentMark }>;
+    /** Scroll to and briefly highlight a segment; a new nonce repeats the request */
+    focusRequest?: { segmentId: string; nonce: number } | null;
 
     // Pagination props (infinite scroll)
     hasMore?: boolean;
@@ -60,6 +68,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence,
     isStreaming,
     showConfidence,
+    mark,
+    isFlashing,
 }: {
     id: string;
     timestamp: number;
@@ -67,14 +77,23 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence?: number;
     isStreaming: boolean;
     showConfidence: boolean;
+    mark?: SegmentMark;
+    isFlashing?: boolean;
 }) {
     const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
 
     return (
-        <div id={`segment-${id}`} className="mb-5">
+        <div
+            id={`segment-${id}`}
+            className={`mb-5 -mx-2 rounded-lg px-2 py-0.5 transition-colors duration-500 ${
+                isFlashing ? 'bg-blue-100' : mark === 'bookmark' ? 'bg-blue-50/70' : ''
+            }`}
+        >
             <div className="flex items-start gap-5">
                 <Tooltip>
-                    <TooltipTrigger className="w-14 flex-shrink-0 pt-1.5 text-right font-mono text-xs leading-4 tabular-nums text-gray-400">
+                    <TooltipTrigger className="flex w-14 flex-shrink-0 items-center justify-end gap-1 pt-1.5 text-right font-mono text-xs leading-4 tabular-nums text-gray-400">
+                        {mark === 'bookmark' && <Bookmark className="h-3 w-3 text-blue-600" aria-label="Bookmarked" />}
+                        {mark === 'note' && <StickyNote className="h-3 w-3 text-gray-500" aria-label="Has a note" />}
                         {formatTimestamp(timestamp)}
                     </TooltipTrigger>
                     <TooltipContent>
@@ -100,6 +119,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     enableStreaming = false,
     showConfidence = true,
     disableAutoScroll = false,
+    segmentMarks,
+    focusRequest,
     hasMore = false,
     isLoadingMore = false,
     totalCount = 0,
@@ -144,6 +165,30 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         isRecording,
         enableStreaming
     );
+
+    // Scroll to a segment on request (e.g. a note's time was clicked) and flash it.
+    const [flashSegmentId, setFlashSegmentId] = useState<string | null>(null);
+    useEffect(() => {
+        if (!focusRequest) return;
+        const index = segments.findIndex((s) => s.id === focusRequest.segmentId);
+        if (index < 0) return;
+        if (segments.length >= VIRTUALIZATION_THRESHOLD) {
+            virtualizer.scrollToIndex(index, { align: 'center' });
+        }
+        const frame = requestAnimationFrame(() => {
+            document
+                .getElementById(`segment-${focusRequest.segmentId}`)
+                ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        });
+        setFlashSegmentId(focusRequest.segmentId);
+        const timer = setTimeout(() => setFlashSegmentId(null), FLASH_MS);
+        return () => {
+            cancelAnimationFrame(frame);
+            clearTimeout(timer);
+        };
+        // Only when a new request arrives.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusRequest]);
 
     // Infinite scroll: IntersectionObserver to trigger loading more
     useEffect(() => {
@@ -267,6 +312,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        mark={segmentMarks?.get(segment.id)?.mark}
+                                        isFlashing={flashSegmentId === segment.id}
                                     />
                                 </div>
                             );
@@ -323,6 +370,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        mark={segmentMarks?.get(segment.id)?.mark}
+                                        isFlashing={flashSegmentId === segment.id}
                                     />
                                 </motion.div>
                             );
