@@ -1,13 +1,12 @@
 /**
- * Anchoring notes to the recording timeline, and the note composer's slash commands.
- * Pure logic, no React or Tauri. See docs/plans/meeting-prep-and-live-notes.md, sections 4.3
- * and 6.5.
+ * Anchoring notes to the recording timeline: which transcript segments a time range points
+ * at. Pure logic, no React or Tauri. See docs/plans/meeting-prep-and-live-notes.md, section 6.5.
  *
  * All times are milliseconds on the recording clock (pause-free; the same clock as the saved
  * audio and transcript `audio_start_time`).
  */
 
-import type { NoteEntryInput, NoteEntryKind, NoteTag } from '@/services/meetingNotesService';
+import type { NoteEntryInput } from '@/services/meetingNotesService';
 
 /** People start typing after hearing something; look back this far from the first keystroke. */
 export const NOTE_LOOKBACK_MS = 3_000;
@@ -31,15 +30,6 @@ export interface AnchorSegment {
 }
 
 const clampMs = (ms: number) => Math.max(0, Math.round(ms));
-
-export function noteAnchor(firstKeystrokeMs: number, committedMs: number): TimeRange {
-  const startMs = clampMs(firstKeystrokeMs - NOTE_LOOKBACK_MS);
-  return { startMs, endMs: Math.max(startMs, clampMs(committedMs)) };
-}
-
-export function bookmarkAnchor(nowMs: number): TimeRange {
-  return { startMs: clampMs(nowMs - BOOKMARK_BEFORE_MS), endMs: clampMs(nowMs + BOOKMARK_AFTER_MS) };
-}
 
 /** Transcript segments use seconds; anchors use milliseconds. */
 export function toAnchorSegments(
@@ -106,55 +96,4 @@ export function quoteForRange(range: TimeRange, segments: AnchorSegment[]): stri
     .join(' ');
   if (!text) return null;
   return text.length > MAX_QUOTE_CHARS ? `${text.slice(0, MAX_QUOTE_CHARS - 1)}…` : text;
-}
-
-// Slash commands
-
-export interface SlashCommand {
-  command: string;
-  label: string;
-  description: string;
-  tag: NoteTag | null;
-  kind: NoteEntryKind;
-}
-
-export const SLASH_COMMANDS: SlashCommand[] = [
-  { command: 'action', label: 'Action', description: 'Something someone has to do', tag: 'action', kind: 'note' },
-  { command: 'decision', label: 'Decision', description: 'Something that was decided', tag: 'decision', kind: 'note' },
-  { command: 'question', label: 'Question', description: 'An open question', tag: 'question', kind: 'note' },
-  { command: 'agenda', label: 'Agenda item', description: 'Add a topic to the agenda', tag: null, kind: 'agenda' },
-];
-
-/** Commands to suggest while the user is typing `/xyz` with no space yet. */
-export function matchSlashCommands(input: string): SlashCommand[] {
-  const match = /^\/(\w*)$/.exec(input);
-  if (!match) return [];
-  const typed = match[1].toLowerCase();
-  return SLASH_COMMANDS.filter((c) => c.command.startsWith(typed));
-}
-
-export interface ParsedNoteInput {
-  kind: NoteEntryKind;
-  tag: NoteTag | null;
-  text: string;
-}
-
-/** `/action Send the deck` → an action note "Send the deck". Unknown commands stay as text. */
-export function parseNoteInput(input: string): ParsedNoteInput {
-  const match = /^\/(\w+)(?:\s+([\s\S]*))?$/.exec(input.trim());
-  const command = match && SLASH_COMMANDS.find((c) => c.command === match[1].toLowerCase());
-  if (!match || !command) return { kind: 'note', tag: null, text: input.trim() };
-  return { kind: command.kind, tag: command.tag, text: (match[2] ?? '').trim() };
-}
-
-/** Agenda checking: a checked item covers the time since the previous checked item. */
-export function agendaCheckRange(
-  entries: Pick<NoteEntryInput, 'id' | 'kind' | 'done' | 'endMs'>[],
-  nowMs: number,
-): TimeRange {
-  const previousEnd = entries
-    .filter((e) => e.kind === 'agenda' && e.done && e.endMs !== null)
-    .reduce((max, e) => Math.max(max, e.endMs ?? 0), 0);
-  const endMs = clampMs(nowMs);
-  return { startMs: Math.min(previousEnd, endMs), endMs };
 }

@@ -101,6 +101,7 @@ describe('planDraftFlush', () => {
       prep: null,
       participants: null,
       entries: null,
+      notes: null,
     });
   });
 

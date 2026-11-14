@@ -55,6 +55,7 @@ const PART_LABELS: Record<DraftPart, string> = {
   title: 'title',
   prep: 'meeting type and context',
   participants: 'participants',
+  entries: 'agenda',
   notes: 'notes',
 };
 

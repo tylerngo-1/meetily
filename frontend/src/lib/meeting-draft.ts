@@ -5,6 +5,13 @@
  */
 
 import type { MeetingPrep, NoteEntryInput, NoteEntryKind, NoteTag } from '@/services/meetingNotesService';
+import {
+  EMPTY_NOTES_DOCUMENT,
+  isNotesDocumentEmpty,
+  normalizeNotesDocument,
+  pruneBlockTimes,
+  type NotesDocument,
+} from '@/lib/notes-document';
 
 /** `prep`: being filled in on home. `recording`: attached to the recording in progress. */
 export type DraftPhase = 'prep' | 'recording';
@@ -19,6 +26,10 @@ export interface MeetingDraft {
   prepContext: string;
   seriesId: string | null;
   entries: DraftEntry[];
+  /** Free-form notes written during the recording. */
+  notes: NotesDocument;
+  /** Markdown copy of `notes`, kept up to date by the editor. */
+  notesMarkdown: string;
   phase: DraftPhase;
   /** IndexedDB recovery meeting id of the recording this draft belongs to. */
   recoveryMeetingId: string | null;
@@ -33,6 +44,8 @@ export const EMPTY_DRAFT: MeetingDraft = Object.freeze({
   prepContext: '',
   seriesId: null,
   entries: [],
+  notes: EMPTY_NOTES_DOCUMENT,
+  notesMarkdown: '',
   phase: 'prep',
   recoveryMeetingId: null,
   updatedAt: 0,
@@ -86,6 +99,8 @@ export function normalizeDraft(raw: unknown): MeetingDraft {
     prepContext: str(r.prepContext),
     seriesId: strOrNull(r.seriesId),
     entries,
+    notes: normalizeNotesDocument(r.notes),
+    notesMarkdown: str(r.notesMarkdown),
     phase: r.phase === 'recording' ? 'recording' : 'prep',
     recoveryMeetingId: strOrNull(r.recoveryMeetingId),
     updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : 0,
@@ -100,7 +115,8 @@ export function isDraftEmpty(draft: MeetingDraft): boolean {
     draft.participants.every((p) => !p.trim()) &&
     !draft.prepContext.trim() &&
     !draft.seriesId &&
-    draft.entries.length === 0
+    draft.entries.length === 0 &&
+    isNotesDocumentEmpty(draft.notes)
   );
 }
 
@@ -137,6 +153,8 @@ export interface DraftFlushPlan {
   participants: string[] | null;
   /** Entries with positions renumbered in list order, when any. */
   entries: NoteEntryInput[] | null;
+  /** The notes document, when it has any text. Times of deleted blocks are dropped. */
+  notes: { markdown: string; json: string } | null;
 }
 
 /** Decides which saves a draft needs, so empty drafts cause no writes at all. */
@@ -158,6 +176,15 @@ export function planDraftFlush(draft: MeetingDraft): DraftFlushPlan {
       draft.entries.length > 0
         ? draft.entries.map((entry, index) => ({ ...entry, position: index }))
         : null,
+    notes: isNotesDocumentEmpty(draft.notes)
+      ? null
+      : {
+          markdown: draft.notesMarkdown,
+          json: JSON.stringify({
+            ...draft.notes,
+            times: pruneBlockTimes(draft.notes.times, draft.notes.blocks),
+          }),
+        },
   };
 }
 

@@ -267,13 +267,17 @@ async fn delete_meeting_with_transaction(
         .execute(&mut *transaction)
         .await?;
 
-    // 4. Delete notes and participants. The schema cascades these, but SQLite only
+    // 4. Delete notes, note entries and participants. The schema cascades these, but SQLite only
     //    enforces that when foreign keys are on for the connection, so be explicit.
     sqlx::query("DELETE FROM meeting_note_entries WHERE meeting_id = ?")
         .bind(meeting_id)
         .execute(&mut *transaction)
         .await?;
     sqlx::query("DELETE FROM meeting_participants WHERE meeting_id = ?")
+        .bind(meeting_id)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("DELETE FROM meeting_notes WHERE meeting_id = ?")
         .bind(meeting_id)
         .execute(&mut *transaction)
         .await?;

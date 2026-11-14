@@ -44,6 +44,12 @@ export interface MeetingPrepDetails extends MeetingPrep {
   participants: Person[];
 }
 
+export interface MeetingNotesRecord {
+  notesMarkdown: string | null;
+  notesJson: string | null;
+  updatedAt: string;
+}
+
 export const meetingNotesService = {
   /** Position in the current recording in ms, or null when not recording. */
   getRecordingOffset(): Promise<number | null> {
@@ -77,6 +83,15 @@ export const meetingNotesService = {
 
   setMeetingParticipants(meetingId: string, names: string[]): Promise<Person[]> {
     return invoke<Person[]>('api_set_meeting_participants', { meetingId, names });
+  },
+
+  getMeetingNotes(meetingId: string): Promise<MeetingNotesRecord | null> {
+    return invoke<MeetingNotesRecord | null>('api_get_meeting_notes', { meetingId });
+  },
+
+  /** Creates or replaces the meeting's notes document. */
+  saveMeetingNotes(meetingId: string, notesMarkdown: string, notesJson: string | null): Promise<void> {
+    return invoke<void>('api_save_meeting_notes', { meetingId, notesMarkdown, notesJson });
   },
 
   listPeople(): Promise<Person[]> {

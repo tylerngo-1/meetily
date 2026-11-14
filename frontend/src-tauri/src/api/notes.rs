@@ -6,6 +6,7 @@
 use log::{error as log_error, info as log_info};
 use serde::Serialize;
 
+use crate::database::repositories::meeting_notes::{MeetingNotes, MeetingNotesRepository};
 use crate::database::repositories::meeting_prep::{MeetingPrep, MeetingPrepRepository, Person};
 use crate::database::repositories::note_entries::{NoteEntriesRepository, NoteEntry, NoteEntryInput};
 use crate::state::AppState;
@@ -139,4 +140,45 @@ pub async fn api_list_people(state: tauri::State<'_, AppState>) -> Result<Vec<Pe
     MeetingPrepRepository::list_people(state.db_manager.pool())
         .await
         .map_err(|e| format!("Failed to load people: {}", e))
+}
+
+/// The meeting's notes document, or `None` if it has no notes yet.
+#[tauri::command]
+pub async fn api_get_meeting_notes(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<Option<MeetingNotes>, String> {
+    MeetingNotesRepository::get_notes(state.db_manager.pool(), &meeting_id)
+        .await
+        .map_err(|e| {
+            log_error!("Failed to load notes document for meeting {}: {}", meeting_id, e);
+            format!("Failed to load notes: {}", e)
+        })
+}
+
+#[tauri::command]
+pub async fn api_save_meeting_notes(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    notes_markdown: String,
+    notes_json: Option<String>,
+) -> Result<(), String> {
+    match MeetingNotesRepository::save_notes(
+        state.db_manager.pool(),
+        &meeting_id,
+        &notes_markdown,
+        notes_json.as_deref(),
+    )
+    .await
+    {
+        Ok(true) => {
+            log_info!("Saved notes document for meeting {} ({} bytes)", meeting_id, notes_markdown.len());
+            Ok(())
+        }
+        Ok(false) => Err(not_found(&meeting_id)),
+        Err(e) => {
+            log_error!("Failed to save notes document for meeting {}: {}", meeting_id, e);
+            Err(e)
+        }
+    }
 }

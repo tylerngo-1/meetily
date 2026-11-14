@@ -6,9 +6,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { draftKeys, normalizeDraft, planDraftFlush, type MeetingDraft } from '@/lib/meeting-draft';
 import { indexedDBService } from '@/services/indexedDBService';
+import { EMPTY_NOTES_DOCUMENT } from '@/lib/notes-document';
 import { meetingNotesService } from '@/services/meetingNotesService';
 
-export type DraftPart = 'title' | 'prep' | 'participants' | 'notes';
+export type DraftPart = 'title' | 'prep' | 'participants' | 'entries' | 'notes';
 
 export interface DraftSyncResult {
   /** The user's title, when it was saved. */
@@ -22,6 +23,7 @@ export interface DraftSyncDeps {
   setPrep: typeof meetingNotesService.setMeetingPrep;
   setParticipants: typeof meetingNotesService.setMeetingParticipants;
   saveEntries: typeof meetingNotesService.saveNoteEntries;
+  saveNotes: typeof meetingNotesService.saveMeetingNotes;
 }
 
 const defaultDeps: DraftSyncDeps = {
@@ -29,6 +31,7 @@ const defaultDeps: DraftSyncDeps = {
   setPrep: meetingNotesService.setMeetingPrep,
   setParticipants: meetingNotesService.setMeetingParticipants,
   saveEntries: meetingNotesService.saveNoteEntries,
+  saveNotes: meetingNotesService.saveMeetingNotes,
 };
 
 /**
@@ -69,7 +72,11 @@ export async function applyDraftToMeeting(
   }
   if (plan.entries) {
     const entries = plan.entries;
-    await attempt('notes', () => deps.saveEntries(meetingId, entries));
+    await attempt('entries', () => deps.saveEntries(meetingId, entries));
+  }
+  if (plan.notes) {
+    const { markdown, json } = plan.notes;
+    await attempt('notes', () => deps.saveNotes(meetingId, markdown, json));
   }
 
   return { titleApplied, failed };
@@ -86,7 +93,9 @@ export function draftWithOnlyFailedParts(draft: MeetingDraft, failed: DraftPart[
     prepContext: keep.has('prep') ? draft.prepContext : '',
     seriesId: keep.has('prep') ? draft.seriesId : null,
     participants: keep.has('participants') ? draft.participants : [],
-    entries: keep.has('notes') ? draft.entries : [],
+    entries: keep.has('entries') ? draft.entries : [],
+    notes: keep.has('notes') ? draft.notes : EMPTY_NOTES_DOCUMENT,
+    notesMarkdown: keep.has('notes') ? draft.notesMarkdown : '',
   };
 }
 

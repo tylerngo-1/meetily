@@ -20,11 +20,16 @@ import { TranscriptRecovery } from '@/components/TranscriptRecovery';
 import { indexedDBService } from '@/services/indexedDBService';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { LiveNotesPanel, type LiveNotesPanelHandle } from '@/components/LiveNotes/LiveNotesPanel';
+import { LiveNotesPanel } from '@/components/LiveNotes/LiveNotesPanel';
+import type { NotesEditorHandle } from '@/components/LiveNotes/NotesEditor';
 import { useLiveNotes } from '@/hooks/useLiveNotes';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
+import { useMeetingDraft } from '@/contexts/MeetingDraftContext';
 import { segmentsForRange } from '@/lib/note-anchors';
-import type { NoteEntryInput } from '@/services/meetingNotesService';
+import { blockTimeRange, type BlockTime } from '@/lib/notes-document';
+
+/** How long a bookmark waits for the notes editor to load after opening the pane. */
+const BOOKMARK_EDITOR_WAIT_MS = 5_000;
 
 const NOTES_OPEN_KEY = 'meetily.recording.notesOpen';
 
@@ -77,7 +82,8 @@ export default function Home() {
 
   // Live notes (docs/plans/meeting-prep-and-live-notes.md, section 6)
   const liveNotes = useLiveNotes();
-  const notesPanelRef = useRef<LiveNotesPanelHandle>(null);
+  const notesEditorRef = useRef<NotesEditorHandle | null>(null);
+  const { draft } = useMeetingDraft();
   const [notesOpen, setNotesOpen] = useState(true);
   const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number } | null>(null);
   const split = useResizableSplit({
@@ -107,16 +113,32 @@ export default function Home() {
   const handleBookmark = useCallback(async () => {
     if (!recordingState.isRecording) return;
     Analytics.trackButtonClick('bookmark', 'recording_controls');
-    const id = await liveNotes.addBookmark();
-    const panel = notesPanelRef.current;
-    if (panel && !panel.isComposing()) panel.editEntry(id);
-    else if (!panel) toast.success('Bookmarked', { duration: 1500 });
-  }, [recordingState.isRecording, liveNotes]);
+    // Take the time now, before any waiting: the bookmark is for what was just said.
+    const atMs = await liveNotes.getOffsetMs();
+    const quote = liveNotes.quoteForBookmark(atMs);
+    const insert = () => {
+      if (!notesEditorRef.current) return false;
+      notesEditorRef.current.insertBookmark(atMs, quote);
+      return true;
+    };
+    if (insert()) return;
 
-  const handleJumpToEntry = useCallback((entry: NoteEntryInput) => {
-    if (entry.startMs === null) return;
-    const range = { startMs: entry.startMs, endMs: entry.endMs ?? entry.startMs };
-    const [segment] = segmentsForRange(range, liveNotes.anchorSegments);
+    // The pane is hidden: open it so the bookmark is visible, then insert once the editor is up.
+    if (!notesOpen) toggleNotes();
+    const deadline = Date.now() + BOOKMARK_EDITOR_WAIT_MS;
+    const retry = () => {
+      if (insert()) return;
+      if (Date.now() > deadline) {
+        toast.error("Couldn't add the bookmark", { description: 'The notes editor did not load. Try again.' });
+        return;
+      }
+      setTimeout(retry, 100);
+    };
+    setTimeout(retry, 100);
+  }, [recordingState.isRecording, liveNotes, notesOpen, toggleNotes]);
+
+  const handleJumpToTime = useCallback((time: BlockTime) => {
+    const [segment] = segmentsForRange(blockTimeRange(time), liveNotes.anchorSegments);
     if (!segment) {
       toast.info('No transcript at that time yet');
       return;
@@ -307,9 +329,13 @@ export default function Home() {
           {showNotes && (
             <div className={`flex min-w-0 flex-1 flex-col ${isSplit ? '' : 'pb-32'}`}>
               <LiveNotesPanel
-                ref={notesPanelRef}
-                liveNotes={liveNotes}
-                onJumpToEntry={handleJumpToEntry}
+                // A new recording gets a fresh editor; the editor is uncontrolled.
+                key={draft.generatedTitle || 'pending'}
+                editorRef={notesEditorRef}
+                initialDocument={liveNotes.notes}
+                getOffsetMs={liveNotes.getOffsetMs}
+                onChange={liveNotes.saveNotes}
+                onJumpToTime={handleJumpToTime}
                 onClose={toggleNotes}
               />
             </div>

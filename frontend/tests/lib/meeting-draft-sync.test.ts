@@ -28,6 +28,7 @@ function deps(failing: Partial<Record<keyof DraftSyncDeps, boolean>> = {}) {
     setPrep: make('setPrep'),
     setParticipants: make('setParticipants'),
     saveEntries: make('saveEntries'),
+    saveNotes: make('saveNotes'),
   };
 }
 
@@ -57,7 +58,7 @@ describe('applyDraftToMeeting', () => {
     try {
       const result = await applyDraftToMeeting('m1', fullDraft, d as unknown as DraftSyncDeps);
       expect(result.titleApplied).toBeNull();
-      expect(result.failed).toEqual(['title', 'notes']);
+      expect(result.failed).toEqual(['title', 'entries']);
       expect(d.setPrep).toHaveBeenCalled();
       expect(d.setParticipants).toHaveBeenCalled();
     } finally {
@@ -66,9 +67,36 @@ describe('applyDraftToMeeting', () => {
   });
 });
 
+describe('notes document', () => {
+  test('is saved as markdown plus JSON without times of deleted blocks', async () => {
+    const d = deps();
+    const withNotes: MeetingDraft = {
+      ...EMPTY_DRAFT,
+      notes: {
+        version: 1,
+        blocks: [{ id: 'b1', type: 'paragraph', content: [{ type: 'text', text: 'Scope', styles: {} }], children: [] }],
+        times: { b1: { atMs: 1_000, kind: 'note' }, deleted: { atMs: 2_000, kind: 'note' } },
+      },
+      notesMarkdown: 'Scope',
+    };
+    const result = await applyDraftToMeeting('m1', withNotes, d as unknown as DraftSyncDeps);
+    expect(result.failed).toEqual([]);
+    const [meetingId, markdown, json] = d.saveNotes.mock.calls[0] as unknown as [string, string, string];
+    expect(meetingId).toBe('m1');
+    expect(markdown).toBe('Scope');
+    expect(Object.keys(JSON.parse(json).times)).toEqual(['b1']);
+  });
+
+  test('an empty page is not saved', async () => {
+    const d = deps();
+    await applyDraftToMeeting('m1', { ...EMPTY_DRAFT, notesMarkdown: '' }, d as unknown as DraftSyncDeps);
+    expect(d.saveNotes).not.toHaveBeenCalled();
+  });
+});
+
 describe('draftWithOnlyFailedParts', () => {
   test('a retry redoes only the failed parts', async () => {
-    const retryDraft = draftWithOnlyFailedParts(fullDraft, ['notes']);
+    const retryDraft = draftWithOnlyFailedParts(fullDraft, ['entries']);
     const d = deps();
     await applyDraftToMeeting('m1', retryDraft, d as unknown as DraftSyncDeps);
     expect(d.saveEntries).toHaveBeenCalledTimes(1);

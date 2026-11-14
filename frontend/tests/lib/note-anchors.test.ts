@@ -1,11 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
   MAX_QUOTE_CHARS,
-  agendaCheckRange,
-  bookmarkAnchor,
-  matchSlashCommands,
-  noteAnchor,
-  parseNoteInput,
   quoteForRange,
   resolveSegmentMarks,
   segmentsForRange,
@@ -22,17 +17,7 @@ const seg = (id: string, startS: number, endS: number, text = id): AnchorSegment
 
 const transcript = [seg('s1', 0, 4), seg('s2', 5, 9), seg('s3', 30, 34)];
 
-describe('anchors', () => {
-  test('a note looks back from the first keystroke and never goes below zero', () => {
-    expect(noteAnchor(10_000, 14_000)).toEqual({ startMs: 7_000, endMs: 14_000 });
-    expect(noteAnchor(1_000, 500)).toEqual({ startMs: 0, endMs: 500 });
-  });
-
-  test('a bookmark covers what was just said', () => {
-    expect(bookmarkAnchor(20_000)).toEqual({ startMs: 12_000, endMs: 22_000 });
-    expect(bookmarkAnchor(3_000).startMs).toBe(0);
-  });
-
+describe('toAnchorSegments', () => {
   test('converts transcript seconds to ms, tolerating a missing end', () => {
     expect(toAnchorSegments([{ id: 'a', timestamp: 1.25, endTime: 2.5 }, { id: 'b', timestamp: 3 }])).toEqual([
       { id: 'a', startMs: 1_250, endMs: 2_500, text: undefined },
@@ -84,37 +69,5 @@ describe('quoteForRange', () => {
     const long = [seg('l', 0, 1, 'x'.repeat(MAX_QUOTE_CHARS + 50))];
     expect(quoteForRange({ startMs: 0, endMs: 1_000 }, long)!.length).toBe(MAX_QUOTE_CHARS);
     expect(quoteForRange({ startMs: 100_000, endMs: 101_000 }, transcript)).toBeNull();
-  });
-});
-
-describe('slash commands', () => {
-  test('suggests while typing the command word', () => {
-    expect(matchSlashCommands('/').length).toBe(4);
-    expect(matchSlashCommands('/de').map((c) => c.command)).toEqual(['decision']);
-    expect(matchSlashCommands('/action ')).toEqual([]);
-    expect(matchSlashCommands('note')).toEqual([]);
-  });
-
-  test('parses a command and its text', () => {
-    expect(parseNoteInput('/action  Send the deck ')).toEqual({ kind: 'note', tag: 'action', text: 'Send the deck' });
-    expect(parseNoteInput('/Agenda Budget')).toEqual({ kind: 'agenda', tag: null, text: 'Budget' });
-    expect(parseNoteInput('/question')).toEqual({ kind: 'note', tag: 'question', text: '' });
-  });
-
-  test('leaves unknown commands and plain text alone', () => {
-    expect(parseNoteInput('/shrug ok')).toEqual({ kind: 'note', tag: null, text: '/shrug ok' });
-    expect(parseNoteInput('  plain note ')).toEqual({ kind: 'note', tag: null, text: 'plain note' });
-  });
-});
-
-describe('agendaCheckRange', () => {
-  test('starts where the previous checked item ended', () => {
-    const entries = [
-      { id: 'a', kind: 'agenda' as const, done: true, endMs: 60_000 },
-      { id: 'b', kind: 'agenda' as const, done: false, endMs: null },
-      { id: 'n', kind: 'note' as const, done: false, endMs: 90_000 },
-    ];
-    expect(agendaCheckRange(entries, 120_000)).toEqual({ startMs: 60_000, endMs: 120_000 });
-    expect(agendaCheckRange([], 5_000)).toEqual({ startMs: 0, endMs: 5_000 });
   });
 });
