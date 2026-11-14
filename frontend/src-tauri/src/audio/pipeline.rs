@@ -856,6 +856,9 @@ impl AudioPipeline {
                             // Previous 2x gain was causing excessive limiting/distortion
                             let mixed_with_gain = mixed_clean;
 
+                            // Advance the recording clock used to anchor user notes.
+                            self.state.record_mixed_samples(mixed_with_gain.len(), self.sample_rate);
+
                             // STEP 3: Send mixed audio for transcription (VAD + Whisper)
                             match self.vad_processor.process_audio(&mixed_with_gain) {
                                 Ok(speech_segments) => {

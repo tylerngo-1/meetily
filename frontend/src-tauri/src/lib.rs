@@ -692,6 +692,7 @@ pub fn run() {
             audio::recording_commands::resume_recording,
             audio::recording_commands::is_recording_paused,
             audio::recording_commands::get_recording_state,
+            audio::recording_commands::api_get_recording_offset,
             audio::recording_commands::get_meeting_folder_path,
             // Reload sync commands (retrieve transcript history and meeting name)
             audio::recording_commands::get_transcript_history,
