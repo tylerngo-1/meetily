@@ -10,7 +10,7 @@ import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { ModalType } from '@/hooks/useModalState';
 import { useIsLinux } from '@/hooks/usePlatform';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { RecordingHeader } from './RecordingHeader';
 
 /**
@@ -32,6 +32,8 @@ interface TranscriptPanelProps {
   onToggleNotes?: () => void;
   segmentMarks?: Map<string, { mark: SegmentMark }>;
   focusRequest?: { segmentId: string; nonce: number } | null;
+  /** Shown instead of the empty transcript before recording (the meeting prep form). */
+  idleContent?: ReactNode;
 }
 
 export function TranscriptPanel({
@@ -43,6 +45,7 @@ export function TranscriptPanel({
   onToggleNotes,
   segmentMarks,
   focusRequest,
+  idleContent,
 }: TranscriptPanelProps) {
   const columnClass = isSplit ? 'w-full max-w-[750px] px-2' : 'w-2/3 max-w-[750px]';
   // Contexts
@@ -135,6 +138,9 @@ export function TranscriptPanel({
       )}
 
       {/* Transcript content */}
+      {idleContent && !isRecording && !isProcessingStop && !isStopping && segments.length === 0 ? (
+        <div className="pb-40">{idleContent}</div>
+      ) : (
       <div className="pb-40">
         <div className="flex justify-center">
           <div className={columnClass}>
@@ -152,6 +158,7 @@ export function TranscriptPanel({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

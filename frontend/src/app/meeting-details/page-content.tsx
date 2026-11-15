@@ -85,7 +85,7 @@ export default function PageContent({
 
   // Custom hooks
   const meetingData = useMeetingData({ meeting, summaryData, onMeetingUpdated });
-  const templates = useTemplates();
+  const templates = useTemplates(meeting.id);
 
   // Callback to register the modal open function
   const handleRegisterModalOpen = (openFn: () => void) => {
@@ -231,6 +231,7 @@ export default function PageContent({
       !shouldAutoGenerate
       || summaryGeneration.summaryStatus !== 'idle'
       || isModelConfigLoading
+      || !templates.isTemplateLoaded
       || meetingData.transcripts.length === 0
       || autoGenerationStartedMeetingIdRef.current === meeting.id
     ) {
@@ -246,6 +247,7 @@ export default function PageContent({
     meeting.id,
     meetingData.transcripts.length,
     isModelConfigLoading,
+    templates.isTemplateLoaded,
     modelConfig.provider,
     modelConfig.model,
     summaryGeneration.handleGenerateSummary,

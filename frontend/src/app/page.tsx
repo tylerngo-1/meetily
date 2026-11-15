@@ -26,6 +26,7 @@ import { useLiveNotes } from '@/hooks/useLiveNotes';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
 import { segmentsForRange } from '@/lib/note-anchors';
 import { blockTimeRange, type BlockTime } from '@/lib/notes-document';
+import { MeetingPrepPanel } from '@/components/MeetingPrep/MeetingPrepPanel';
 
 /** How long a bookmark waits for the notes editor to load after opening the pane. */
 const BOOKMARK_EDITOR_WAIT_MS = 5_000;
@@ -187,6 +188,21 @@ export default function Home() {
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
   }, [recordingState.isRecording, handleBookmark, toggleNotes]);
 
+  // ⌘R / Ctrl+R starts recording from home, even from inside a prep field. Same path as the
+  // sidebar's record button.
+  useEffect(() => {
+    if (recordingState.isRecording || notesPhase !== null || isRecordingDisabled) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.repeat || e.code !== 'KeyR') return;
+      e.preventDefault();
+      e.stopPropagation();
+      Analytics.trackButtonClick('start_recording', 'shortcut');
+      window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
+    };
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [recordingState.isRecording, notesPhase, isRecordingDisabled]);
+
   useEffect(() => {
     // Track page view
     Analytics.trackPageView('home');
@@ -339,6 +355,7 @@ export default function Home() {
               onToggleNotes={toggleNotes}
               segmentMarks={liveNotes.segmentMarks}
               focusRequest={focusRequest}
+              idleContent={hasMicrophone || isRecording ? <MeetingPrepPanel /> : undefined}
             />
           </div>
           {isSplit && (
