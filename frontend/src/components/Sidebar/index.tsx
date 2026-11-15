@@ -51,6 +51,7 @@ const Sidebar: React.FC = () => {
     handleRecordingToggle,
     searchTranscripts,
     searchResults,
+    meetingIdsWithNotes,
     isSearching,
     meetings,
     setMeetings,
@@ -613,6 +614,12 @@ const Sidebar: React.FC = () => {
                   </div>
                 )}
                 <span className="flex-1 break-words">{item.title}</span>
+                {isMeetingItem && meetingIdsWithNotes.has(item.id) && (
+                  <span title="Has notes" className="ml-1 flex-shrink-0 text-gray-400 group-hover:hidden">
+                    <NotebookPen className="h-3.5 w-3.5" aria-hidden />
+                    <span className="sr-only">Has notes</span>
+                  </span>
+                )}
                 {isMeetingItem && (
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                     <button
@@ -642,7 +649,10 @@ const Sidebar: React.FC = () => {
               {/* Show transcript match snippet if available */}
               {hasTranscriptMatch && (
                 <div className="mt-1 ml-8 text-xs text-gray-500 bg-yellow-50 p-1.5 rounded border border-yellow-100 line-clamp-2">
-                  <span className="font-medium text-yellow-600">Match:</span> {matchingResult.matchContext}
+                  <span className="font-medium text-yellow-600">
+                    {matchingResult.source === 'notes' ? 'In your notes:' : 'Match:'}
+                  </span>{' '}
+                  {matchingResult.matchContext}
                 </div>
               )}
             </div>

@@ -1,9 +1,11 @@
 //! The free-form notes document of a meeting (table `meeting_notes`, one row per meeting).
 //!
 //! `notes_json` is owned by the UI: the editor's blocks plus the recording-clock time of each
-//! block (see `frontend/src/lib/notes-document.ts`). `notes_markdown` is a plain-text copy for
-//! the summary and for copying. The core stores both as given.
+//! bookmark (see `frontend/src/lib/notes-document.ts`). `notes_markdown` is a plain-text copy
+//! for search, the summary and copying. The core stores both as given.
 
+use super::search_snippet::match_snippet;
+use crate::api::TranscriptSearchResult;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -32,6 +34,53 @@ impl MeetingNotesRepository {
         .bind(meeting_id)
         .fetch_optional(pool)
         .await
+    }
+
+    /// Ids of meetings whose notes have any text, for the "has notes" mark in the meeting list.
+    pub async fn meeting_ids_with_notes(pool: &SqlitePool) -> Result<Vec<String>, sqlx::Error> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT meeting_id FROM meeting_notes
+             WHERE notes_markdown IS NOT NULL
+               AND TRIM(notes_markdown, ' ' || char(9) || char(10) || char(13)) <> ''",
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    /// Meetings whose notes contain `query` (case-insensitive for ASCII, like transcript
+    /// search), with a snippet around the match.
+    pub async fn search_notes(
+        pool: &SqlitePool,
+        query: &str,
+    ) -> Result<Vec<TranscriptSearchResult>, sqlx::Error> {
+        let query = query.trim();
+        if query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let pattern = format!(
+            "%{}%",
+            query.to_lowercase().replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+        );
+        let rows: Vec<(String, String, String, String)> = sqlx::query_as(
+            "SELECT m.id, m.title, n.notes_markdown, n.updated_at
+             FROM meeting_notes n
+             JOIN meetings m ON m.id = n.meeting_id
+             WHERE LOWER(n.notes_markdown) LIKE ? ESCAPE '\\'
+             ORDER BY n.updated_at DESC",
+        )
+        .bind(pattern)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, title, markdown, updated_at)| TranscriptSearchResult {
+                id,
+                title,
+                match_context: match_snippet(&markdown, query, 60),
+                timestamp: updated_at,
+            })
+            .collect())
     }
 
     /// Creates or replaces the notes of a meeting. Returns `Ok(false)` if the meeting does
@@ -109,5 +158,26 @@ mod tests {
         insert_meeting(&pool, "m1").await;
         let huge = "x".repeat(MAX_NOTES_BYTES + 1);
         assert!(MeetingNotesRepository::save_notes(&pool, "m1", &huge, None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn lists_and_searches_meetings_with_notes() {
+        let pool = migrated_pool().await;
+        insert_meeting(&pool, "m1").await;
+        insert_meeting(&pool, "m2").await;
+        insert_meeting(&pool, "m3").await;
+        MeetingNotesRepository::save_notes(&pool, "m1", "- Chốt phạm vi PDF export", None).await.unwrap();
+        MeetingNotesRepository::save_notes(&pool, "m2", "  \n ", None).await.unwrap();
+
+        let ids = MeetingNotesRepository::meeting_ids_with_notes(&pool).await.unwrap();
+        assert_eq!(ids, vec!["m1".to_string()]);
+
+        let hits = MeetingNotesRepository::search_notes(&pool, "pdf").await.unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "m1");
+        assert!(hits[0].match_context.contains("PDF export"));
+        // LIKE wildcards in the query are literal.
+        assert!(MeetingNotesRepository::search_notes(&pool, "%").await.unwrap().is_empty());
+        assert!(MeetingNotesRepository::search_notes(&pool, " ").await.unwrap().is_empty());
     }
 }

@@ -182,3 +182,29 @@ pub async fn api_save_meeting_notes(
         }
     }
 }
+
+/// Ids of meetings that have notes, for the mark in the meeting list.
+#[tauri::command]
+pub async fn api_list_meetings_with_notes(state: tauri::State<'_, AppState>) -> Result<Vec<String>, String> {
+    MeetingNotesRepository::meeting_ids_with_notes(state.db_manager.pool())
+        .await
+        .map_err(|e| {
+            log_error!("Failed to list meetings with notes: {}", e);
+            format!("Failed to list meetings with notes: {}", e)
+        })
+}
+
+/// Meetings whose notes contain `query`, with a snippet. The query is user text and is not
+/// logged.
+#[tauri::command]
+pub async fn api_search_meeting_notes(
+    state: tauri::State<'_, AppState>,
+    query: String,
+) -> Result<Vec<crate::api::TranscriptSearchResult>, String> {
+    MeetingNotesRepository::search_notes(state.db_manager.pool(), &query)
+        .await
+        .map_err(|e| {
+            log_error!("Failed to search notes: {}", e);
+            format!("Failed to search notes: {}", e)
+        })
+}

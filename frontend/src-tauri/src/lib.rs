@@ -741,6 +741,8 @@ pub fn run() {
             api::notes::api_list_people,
             api::notes::api_get_meeting_notes,
             api::notes::api_save_meeting_notes,
+            api::notes::api_list_meetings_with_notes,
+            api::notes::api_search_meeting_notes,
             api::api_save_transcript,
             api::open_meeting_folder,
             api::test_backend_connection,

@@ -94,6 +94,16 @@ export const meetingNotesService = {
     return invoke<void>('api_save_meeting_notes', { meetingId, notesMarkdown, notesJson });
   },
 
+  /** Ids of meetings that have notes. */
+  listMeetingsWithNotes(): Promise<string[]> {
+    return invoke<string[]>('api_list_meetings_with_notes');
+  },
+
+  /** Meetings whose notes contain `query`, with a snippet around the match. */
+  searchMeetingNotes(query: string): Promise<{ id: string; title: string; matchContext: string; timestamp: string }[]> {
+    return invoke('api_search_meeting_notes', { query });
+  },
+
   listPeople(): Promise<Person[]> {
     return invoke<Person[]>('api_list_people');
   },
