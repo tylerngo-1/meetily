@@ -297,7 +297,7 @@ export function useRecordingStop(
           console.log('   folder_path:', folderPath);
 
           // Apply the title the user typed during recording (never blocks the save flow)
-          const draftTitle = await flushDraftToMeeting(meetingId);
+          const { titleApplied: draftTitle, noteLines } = await flushDraftToMeeting(meetingId);
 
           // Mark meeting as saved in IndexedDB (for recovery system)
           await markMeetingAsSaved();
@@ -330,7 +330,9 @@ export function useRecordingStop(
 
           // Show success toast with navigation option
           toast.success('Recording saved successfully!', {
-            description: `${freshTranscripts.length} transcript segments saved.`,
+            description: noteLines > 0
+              ? `${freshTranscripts.length} transcript segments and ${noteLines} ${noteLines === 1 ? 'note' : 'notes'} saved.`
+              : `${freshTranscripts.length} transcript segments saved.`,
             action: {
               label: 'View Meeting',
               onClick: () => {

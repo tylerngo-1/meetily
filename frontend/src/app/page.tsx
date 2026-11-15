@@ -20,11 +20,10 @@ import { TranscriptRecovery } from '@/components/TranscriptRecovery';
 import { indexedDBService } from '@/services/indexedDBService';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { LiveNotesPanel } from '@/components/LiveNotes/LiveNotesPanel';
+import { LiveNotesPanel, type LiveNotesPhase } from '@/components/LiveNotes/LiveNotesPanel';
 import type { NotesEditorHandle } from '@/components/LiveNotes/NotesEditor';
 import { useLiveNotes } from '@/hooks/useLiveNotes';
 import { useResizableSplit } from '@/hooks/useResizableSplit';
-import { useMeetingDraft } from '@/contexts/MeetingDraftContext';
 import { segmentsForRange } from '@/lib/note-anchors';
 import { blockTimeRange, type BlockTime } from '@/lib/notes-document';
 
@@ -83,7 +82,6 @@ export default function Home() {
   // Live notes (docs/plans/meeting-prep-and-live-notes.md, section 6)
   const liveNotes = useLiveNotes();
   const notesEditorRef = useRef<NotesEditorHandle | null>(null);
-  const { draft } = useMeetingDraft();
   const [notesOpen, setNotesOpen] = useState(true);
   const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number } | null>(null);
   const split = useResizableSplit({
@@ -94,7 +92,29 @@ export default function Home() {
     label: 'Resize transcript and notes',
     firstPaneName: 'Transcript',
   });
-  const showNotes = recordingState.isRecording && notesOpen;
+  // Notes stay on screen after Stop until the meeting page opens, so the last thought can be
+  // finished and nothing seems to vanish. Editable until saving starts (the draft is flushed then).
+  const notesPhase: LiveNotesPhase | null =
+    recordingState.isRecording ? 'recording'
+    : status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS ? 'finishing'
+    : status === RecordingStatus.SAVING ? 'saving'
+    : status === RecordingStatus.COMPLETED ? 'saved'
+    : null;
+  const showNotes = notesPhase !== null && notesOpen;
+
+  // One editor per recording. Not keyed by the draft: the draft is reset while saving, and the
+  // notes must stay on screen until the meeting page opens.
+  const [notesSession, setNotesSession] = useState(0);
+  const wasRecordingRef = useRef(false);
+  useEffect(() => {
+    if (recordingState.isRecording && !wasRecordingRef.current) setNotesSession((n) => n + 1);
+    wasRecordingRef.current = recordingState.isRecording;
+  }, [recordingState.isRecording]);
+
+  // Save the last keystrokes into the draft before it is written to the meeting.
+  useEffect(() => {
+    if (status === RecordingStatus.SAVING) void notesEditorRef.current?.flush();
+  }, [status]);
   const isSplit = showNotes && split.isDesktop;
 
   useEffect(() => setNotesOpen(readNotesOpen()), []);
@@ -153,15 +173,18 @@ export default function Home() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.repeat) return;
       if (e.code === 'KeyB') {
+        // Capture phase + stopPropagation: inside the notes editor ⌘B would otherwise also toggle bold.
         e.preventDefault();
+        e.stopPropagation();
         void handleBookmark();
       } else if (e.code === 'KeyJ') {
         e.preventDefault();
+        e.stopPropagation();
         toggleNotes();
       }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
   }, [recordingState.isRecording, handleBookmark, toggleNotes]);
 
   useEffect(() => {
@@ -330,10 +353,10 @@ export default function Home() {
             <div className={`flex min-w-0 flex-1 flex-col ${isSplit ? '' : 'pb-32'}`}>
               <LiveNotesPanel
                 // A new recording gets a fresh editor; the editor is uncontrolled.
-                key={draft.generatedTitle || 'pending'}
+                key={notesSession}
+                phase={notesPhase ?? 'saved'}
                 editorRef={notesEditorRef}
                 initialDocument={liveNotes.notes}
-                getOffsetMs={liveNotes.getOffsetMs}
                 onChange={liveNotes.saveNotes}
                 onJumpToTime={handleJumpToTime}
                 onClose={toggleNotes}

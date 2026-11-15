@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { toast } from 'sonner';
 import { recordingService } from '@/services/recordingService';
 import { indexedDBService } from '@/services/indexedDBService';
+import { countNoteLines } from '@/lib/notes-document';
 import {
   applyDraftToMeeting,
   draftWithOnlyFailedParts,
@@ -35,6 +36,11 @@ export type { MeetingDraft } from '@/lib/meeting-draft';
 
 type DraftUpdate = Partial<MeetingDraft> | ((draft: MeetingDraft) => Partial<MeetingDraft>);
 
+export interface DraftFlushResult {
+  titleApplied: string | null;
+  noteLines: number;
+}
+
 interface MeetingDraftContextType {
   draft: MeetingDraft;
   /** False until the stored draft has been loaded; avoid showing an empty form before that. */
@@ -43,7 +49,8 @@ interface MeetingDraftContextType {
   updateDraft: (update: DraftUpdate) => void;
   resetDraft: () => void;
   /** Persist the draft to the saved meeting. Returns the user's title if one was applied. */
-  flushDraftToMeeting: (meetingId: string) => Promise<string | null>;
+  /** Saves the draft with the meeting. Returns the title applied (if any) and how many note lines were saved. */
+  flushDraftToMeeting: (meetingId: string) => Promise<DraftFlushResult>;
 }
 
 const PERSIST_DEBOUNCE_MS = 300;
@@ -266,7 +273,7 @@ export function MeetingDraftProvider({ children }: { children: React.ReactNode }
     if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
   }, []);
 
-  const flushDraftToMeeting = useCallback(async (meetingId: string): Promise<string | null> => {
+  const flushDraftToMeeting = useCallback(async (meetingId: string): Promise<DraftFlushResult> => {
     const snapshot = draftRef.current;
     // Home shows an empty prep form for the next meeting right away.
     replaceDraft({ ...EMPTY_DRAFT }, true);
@@ -286,7 +293,10 @@ export function MeetingDraftProvider({ children }: { children: React.ReactNode }
         description: 'The recording is saved. Meetily will try again the next time it starts.',
       });
     }
-    return titleApplied;
+    return {
+      titleApplied,
+      noteLines: failed.includes('notes') ? 0 : countNoteLines(snapshot.notes),
+    };
   }, [replaceDraft]);
 
   return (

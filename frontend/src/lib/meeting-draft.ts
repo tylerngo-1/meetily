@@ -9,7 +9,7 @@ import {
   EMPTY_NOTES_DOCUMENT,
   isNotesDocumentEmpty,
   normalizeNotesDocument,
-  pruneBlockTimes,
+  serializeNotesDocument,
   type NotesDocument,
 } from '@/lib/notes-document';
 
@@ -180,10 +180,7 @@ export function planDraftFlush(draft: MeetingDraft): DraftFlushPlan {
       ? null
       : {
           markdown: draft.notesMarkdown,
-          json: JSON.stringify({
-            ...draft.notes,
-            times: pruneBlockTimes(draft.notes.times, draft.notes.blocks),
-          }),
+          json: serializeNotesDocument(draft.notes),
         },
   };
 }

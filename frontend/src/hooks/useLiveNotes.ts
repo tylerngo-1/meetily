@@ -16,7 +16,9 @@ import { blockTimeRange, bookmarkAnchors, type NotesDocument } from '@/lib/notes
 export function useLiveNotes() {
   const { draft, updateDraft } = useMeetingDraft();
   const { transcripts } = useTranscripts();
-  const { activeDuration } = useRecordingState();
+  const { activeDuration, isRecording } = useRecordingState();
+  const isRecordingRef = useRef(isRecording);
+  isRecordingRef.current = isRecording;
 
   const activeDurationRef = useRef(activeDuration);
   activeDurationRef.current = activeDuration;
@@ -59,8 +61,16 @@ export function useLiveNotes() {
     [],
   );
 
+  // Only into the draft of the recording in progress: once the meeting is saved the draft is
+  // reset for the next meeting, and a late save from this editor must not land in it. Right
+  // after start the draft can still be in prep (recording-started not handled yet); that one
+  // is this meeting's draft too.
   const saveNotes = useCallback((notes: NotesDocument, notesMarkdown: string) => {
-    updateDraft({ notes, notesMarkdown });
+    updateDraft((current) =>
+      current.phase === 'recording' || (current.phase === 'prep' && isRecordingRef.current)
+        ? { notes, notesMarkdown }
+        : {},
+    );
   }, [updateDraft]);
 
   return {

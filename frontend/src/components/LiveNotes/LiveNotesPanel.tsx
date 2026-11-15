@@ -1,20 +1,26 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { PanelRightClose } from 'lucide-react';
 import type { NotesEditorHandle } from './NotesEditor';
+import { NotesEditorLazy as NotesEditor } from './NotesEditorLazy';
 import type { BlockTime, NotesDocument } from '@/lib/notes-document';
 
-// BlockNote touches the DOM on import; load it on the client only.
-const NotesEditor = dynamic(() => import('./NotesEditor'), {
-  ssr: false,
-  loading: () => <div className="px-14 py-3 text-sm text-gray-400">Loading notes…</div>,
-});
+/**
+ * `recording`: notes and bookmarks. `finishing`: recording stopped, transcription is finishing;
+ * notes can still be edited. `saving` / `saved`: the meeting is being saved; notes are read-only.
+ */
+export type LiveNotesPhase = 'recording' | 'finishing' | 'saving' | 'saved';
+
+const PHASE_HINT: Record<Exclude<LiveNotesPhase, 'recording'>, string> = {
+  finishing: 'Recording stopped. You can still finish your notes.',
+  saving: 'Saving your notes with the meeting…',
+  saved: 'Notes saved. Opening the meeting…',
+};
 
 interface LiveNotesPanelProps {
+  phase: LiveNotesPhase;
   editorRef: React.MutableRefObject<NotesEditorHandle | null>;
   initialDocument: NotesDocument;
-  getOffsetMs: () => Promise<number>;
   onChange: (doc: NotesDocument, markdown: string) => void;
   onJumpToTime: (time: BlockTime) => void;
   onClose: () => void;
@@ -23,13 +29,13 @@ interface LiveNotesPanelProps {
 /**
  * LiveNotesPanel
  *
- * Notes pane shown next to the transcript while recording: one free-form page. Each line
- * remembers when it was written; ⌘B adds a bookmark line for what was just said.
+ * Notes pane shown next to the transcript while recording: one free-form page. ⌘B adds
+ * a bookmark line, with its time, for what was just said.
  */
 export function LiveNotesPanel({
+  phase,
   editorRef,
   initialDocument,
-  getOffsetMs,
   onChange,
   onJumpToTime,
   onClose,
@@ -39,8 +45,12 @@ export function LiveNotesPanel({
       <header className="flex items-start justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900">Notes</h2>
-          <p className="text-xs text-gray-500">
-            Saved with this meeting. <kbd className="font-sans">⌘B</kbd> bookmarks what was just said.
+          <p className="text-xs text-gray-500" aria-live="polite">
+            {phase === 'recording' ? (
+              <>Saved with this meeting. <kbd className="font-sans">⌘B</kbd> bookmarks what was just said.</>
+            ) : (
+              PHASE_HINT[phase]
+            )}
           </p>
         </div>
         <button
@@ -57,7 +67,7 @@ export function LiveNotesPanel({
         <NotesEditor
           handleRef={editorRef}
           initialDocument={initialDocument}
-          getOffsetMs={getOffsetMs}
+          readOnly={phase === 'saving' || phase === 'saved'}
           onChange={onChange}
           onJumpToTime={onJumpToTime}
         />

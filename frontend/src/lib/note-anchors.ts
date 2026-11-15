@@ -8,8 +8,6 @@
 
 import type { NoteEntryInput } from '@/services/meetingNotesService';
 
-/** People start typing after hearing something; look back this far from the first keystroke. */
-export const NOTE_LOOKBACK_MS = 3_000;
 /** A bookmark marks "what was just said". */
 export const BOOKMARK_BEFORE_MS = 8_000;
 export const BOOKMARK_AFTER_MS = 2_000;

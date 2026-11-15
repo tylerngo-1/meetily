@@ -75,7 +75,7 @@ describe('notes document', () => {
       notes: {
         version: 1,
         blocks: [{ id: 'b1', type: 'paragraph', content: [{ type: 'text', text: 'Scope', styles: {} }], children: [] }],
-        times: { b1: { atMs: 1_000, kind: 'note' }, deleted: { atMs: 2_000, kind: 'note' } },
+        times: { b1: { atMs: 1_000, kind: 'bookmark' }, deleted: { atMs: 2_000, kind: 'bookmark' } },
       },
       notesMarkdown: 'Scope',
     };
