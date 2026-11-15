@@ -6,9 +6,13 @@ import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { useTranscriptStreaming } from "@/hooks/useTranscriptStreaming";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { RecordingStatusBar } from "./RecordingStatusBar";
-import { motion, AnimatePresence } from "framer-motion";
+import { formatTimestamp } from "@/lib/format-duration";
+import { motion } from "framer-motion";
 import { TranscriptSegmentData } from "@/types";
+import { Bookmark, StickyNote } from "lucide-react";
+import type { SegmentMark } from "@/lib/note-anchors";
+
+const FLASH_MS = 1600;
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -27,6 +31,10 @@ export interface VirtualizedTranscriptViewProps {
     showConfidence?: boolean;
     /** Completely disable auto-scroll behavior (for meeting details page) */
     disableAutoScroll?: boolean;
+    /** Segments that notes or bookmarks point at, keyed by segment id */
+    segmentMarks?: Map<string, { mark: SegmentMark }>;
+    /** Scroll to and briefly highlight a segment; a new nonce repeats the request */
+    focusRequest?: { segmentId: string; nonce: number } | null;
 
     // Pagination props (infinite scroll)
     hasMore?: boolean;
@@ -38,17 +46,6 @@ export interface VirtualizedTranscriptViewProps {
 
 // Threshold for enabling virtualization (below this, use simple rendering)
 const VIRTUALIZATION_THRESHOLD = 10;
-
-// Helper function to format seconds as recording-relative time [MM:SS]
-function formatRecordingTime(seconds: number | undefined): string {
-    if (seconds === undefined) return '[--:--]';
-
-    const totalSeconds = Math.floor(seconds);
-    const minutes = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-
-    return `[${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}]`;
-}
 
 // Helper function to remove filler words and repetitions
 function cleanStopWords(text: string): string {
@@ -71,6 +68,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence,
     isStreaming,
     showConfidence,
+    mark,
+    isFlashing,
 }: {
     id: string;
     timestamp: number;
@@ -78,17 +77,24 @@ const TranscriptSegment = memo(function TranscriptSegment({
     confidence?: number;
     isStreaming: boolean;
     showConfidence: boolean;
+    mark?: SegmentMark;
+    isFlashing?: boolean;
 }) {
     const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
 
     return (
-        <div id={`segment-${id}`} className="mb-3">
-            <div className="flex items-start gap-2">
+        <div
+            id={`segment-${id}`}
+            className={`mb-5 -mx-2 rounded-lg px-2 py-0.5 transition-colors duration-500 ${
+                isFlashing ? 'bg-blue-100' : mark === 'bookmark' ? 'bg-blue-50/70' : ''
+            }`}
+        >
+            <div className="flex items-start gap-5">
                 <Tooltip>
-                    <TooltipTrigger>
-                        <span className="text-xs text-gray-400 mt-1 flex-shrink-0 min-w-[50px]">
-                            {formatRecordingTime(timestamp)}
-                        </span>
+                    <TooltipTrigger className="flex w-14 flex-shrink-0 items-center justify-end gap-1 pt-1.5 text-right font-mono text-xs leading-4 tabular-nums text-gray-400">
+                        {mark === 'bookmark' && <Bookmark className="h-3 w-3 text-blue-600" aria-label="Bookmarked" />}
+                        {mark === 'note' && <StickyNote className="h-3 w-3 text-gray-500" aria-label="Has a note" />}
+                        {formatTimestamp(timestamp)}
                     </TooltipTrigger>
                     <TooltipContent>
                         {confidence !== undefined && showConfidence && (
@@ -96,15 +102,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
                         )}
                     </TooltipContent>
                 </Tooltip>
-                <div className="flex-1">
-                    {isStreaming ? (
-                        <div className="bg-gray-100 border border-gray-200 rounded-lg px-3 py-2">
-                            <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
-                        </div>
-                    ) : (
-                        <p className="text-base text-gray-800 leading-relaxed">{displayText}</p>
-                    )}
-                </div>
+                <p className={`min-w-0 flex-1 text-[17px] leading-7 ${isStreaming ? 'text-gray-500' : 'text-gray-800'}`}>
+                    {displayText}
+                </p>
             </div>
         </div>
     );
@@ -119,6 +119,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     enableStreaming = false,
     showConfidence = true,
     disableAutoScroll = false,
+    segmentMarks,
+    focusRequest,
     hasMore = false,
     isLoadingMore = false,
     totalCount = 0,
@@ -137,7 +139,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     const virtualizer = useVirtualizer({
         count: segments.length,
         getScrollElement: () => scrollRef.current,
-        estimateSize: () => 60, // Estimated height per segment
+        estimateSize: () => 84, // Estimated height per segment
         overscan: 10, // Render extra items above/below viewport
         onChange: () => {
             startTransition(() => {
@@ -163,6 +165,30 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         isRecording,
         enableStreaming
     );
+
+    // Scroll to a segment on request (e.g. a note's time was clicked) and flash it.
+    const [flashSegmentId, setFlashSegmentId] = useState<string | null>(null);
+    useEffect(() => {
+        if (!focusRequest) return;
+        const index = segments.findIndex((s) => s.id === focusRequest.segmentId);
+        if (index < 0) return;
+        if (segments.length >= VIRTUALIZATION_THRESHOLD) {
+            virtualizer.scrollToIndex(index, { align: 'center' });
+        }
+        const frame = requestAnimationFrame(() => {
+            document
+                .getElementById(`segment-${focusRequest.segmentId}`)
+                ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        });
+        setFlashSegmentId(focusRequest.segmentId);
+        const timer = setTimeout(() => setFlashSegmentId(null), FLASH_MS);
+        return () => {
+            cancelAnimationFrame(frame);
+            clearTimeout(timer);
+        };
+        // Only when a new request arrives.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusRequest]);
 
     // Infinite scroll: IntersectionObserver to trigger loading more
     useEffect(() => {
@@ -225,17 +251,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
 
     return (
         <div ref={scrollRef} className="flex flex-col h-full overflow-y-auto px-4 py-2">
-            {/* Recording Status Bar - Sticky at top, always visible when recording */}
-            <AnimatePresence>
-                {isRecording && (
-                    <div className="sticky top-0 z-10 bg-white pb-2">
-                        <RecordingStatusBar isPaused={isPaused} />
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* Content - add padding when recording to prevent overlap */}
-            <div className={isRecording ? 'pt-2' : ''}>
+            <div>
             {segments.length === 0 ? (
                 // Empty state
                 <motion.div
@@ -296,6 +312,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        mark={segmentMarks?.get(segment.id)?.mark}
+                                        isFlashing={flashSegmentId === segment.id}
                                     />
                                 </div>
                             );
@@ -352,6 +370,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         confidence={segment.confidence}
                                         isStreaming={isStreaming}
                                         showConfidence={showConfidence}
+                                        mark={segmentMarks?.get(segment.id)?.mark}
+                                        isFlashing={flashSegmentId === segment.id}
                                     />
                                 </motion.div>
                             );

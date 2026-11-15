@@ -29,10 +29,17 @@ export interface StoredTranscript {
   [key: string]: any;         // Allow additional fields from TranscriptUpdate
 }
 
+/** A meeting draft (prep and notes) stored by key; see `draftKeys` in lib/meeting-draft. */
+export interface StoredDraft {
+  key: string;
+  draft: unknown;             // Parsed with normalizeDraft() on read
+  storedAt: number;           // Unix timestamp (ms)
+}
+
 class IndexedDBService {
   private db: IDBDatabase | null = null;
   private readonly DB_NAME = 'MeetilyRecoveryDB';
-  private readonly DB_VERSION = 1;
+  private readonly DB_VERSION = 2; // 2: meetingDrafts store
   private initPromise: Promise<void> | null = null;
 
   /**
@@ -81,6 +88,11 @@ class IndexedDBService {
             });
             transcriptsStore.createIndex('meetingId', 'meetingId', { unique: false });
             transcriptsStore.createIndex('storedAt', 'storedAt', { unique: false });
+          }
+
+          // Create meeting drafts store (prep and notes, see lib/meeting-draft)
+          if (!db.objectStoreNames.contains('meetingDrafts')) {
+            db.createObjectStore('meetingDrafts', { keyPath: 'key' });
           }
         };
       } catch (error) {
@@ -220,6 +232,51 @@ class IndexedDBService {
       console.error('Failed to delete meeting from IndexedDB:', error);
       throw error;
     }
+  }
+
+  // Draft operations (prep and notes). Errors propagate: callers decide whether they matter.
+
+  async getDraft(key: string): Promise<StoredDraft | null> {
+    if (!this.db) await this.init();
+    const store = this.db!.transaction(['meetingDrafts'], 'readonly').objectStore('meetingDrafts');
+    return new Promise((resolve, reject) => {
+      const request = store.get(key);
+      request.onsuccess = () => resolve((request.result as StoredDraft | undefined) ?? null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async putDraft(key: string, draft: unknown): Promise<void> {
+    if (!this.db) await this.init();
+    const store = this.db!.transaction(['meetingDrafts'], 'readwrite').objectStore('meetingDrafts');
+    const record: StoredDraft = { key, draft, storedAt: Date.now() };
+    await new Promise<void>((resolve, reject) => {
+      const request = store.put(record);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async deleteDraft(key: string): Promise<void> {
+    if (!this.db) await this.init();
+    const store = this.db!.transaction(['meetingDrafts'], 'readwrite').objectStore('meetingDrafts');
+    await new Promise<void>((resolve, reject) => {
+      const request = store.delete(key);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /** All stored drafts whose key starts with `prefix`. */
+  async listDrafts(prefix: string): Promise<StoredDraft[]> {
+    if (!this.db) await this.init();
+    const store = this.db!.transaction(['meetingDrafts'], 'readonly').objectStore('meetingDrafts');
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () =>
+        resolve((request.result as StoredDraft[]).filter((d) => d.key.startsWith(prefix)));
+      request.onerror = () => reject(request.error);
+    });
   }
 
   // Transcript operations

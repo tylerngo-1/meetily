@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tokio::sync::mpsc;
@@ -121,6 +121,12 @@ pub struct RecordingState {
     // Pause time tracking
     pause_start: Mutex<Option<Instant>>,
     total_pause_duration: Mutex<std::time::Duration>,
+
+    // Recording clock: samples of mixed audio produced by the pipeline this session.
+    // Paused audio never reaches the pipeline, so this clock excludes pauses and matches
+    // both the saved audio file and VAD transcript timestamps.
+    mixed_samples: AtomicU64,
+    mixed_sample_rate: AtomicU32,
 }
 
 impl RecordingState {
@@ -140,6 +146,8 @@ impl RecordingState {
             recording_start: Mutex::new(None),
             pause_start: Mutex::new(None),
             total_pause_duration: Mutex::new(std::time::Duration::ZERO),
+            mixed_samples: AtomicU64::new(0),
+            mixed_sample_rate: AtomicU32::new(0),
         })
     }
 
@@ -147,6 +155,7 @@ impl RecordingState {
     pub fn start_recording(&self) -> Result<()> {
         self.is_recording.store(true, Ordering::SeqCst);
         *self.recording_start.lock().unwrap() = Some(Instant::now());
+        self.reset_recording_clock();
         self.error_count.store(0, Ordering::SeqCst);
         self.recoverable_error_count.store(0, Ordering::SeqCst);
         *self.last_error.lock().unwrap() = None;
@@ -360,6 +369,32 @@ impl RecordingState {
         }
     }
 
+    // Recording clock (see `mixed_samples`)
+    fn reset_recording_clock(&self) {
+        self.mixed_samples.store(0, Ordering::SeqCst);
+        self.mixed_sample_rate.store(0, Ordering::SeqCst);
+    }
+
+    /// Called by the pipeline for every mixed window. Lock-free; safe in the hot path.
+    pub fn record_mixed_samples(&self, sample_count: usize, sample_rate: u32) {
+        self.mixed_sample_rate.store(sample_rate, Ordering::Relaxed);
+        self.mixed_samples.fetch_add(sample_count as u64, Ordering::Relaxed);
+    }
+
+    /// Position in the recording in milliseconds, on the same clock as the saved audio
+    /// file and `audio_start_time` of transcript segments. `None` when not recording.
+    pub fn get_recording_offset_ms(&self) -> Option<u64> {
+        if !self.is_recording() {
+            return None;
+        }
+        let rate = self.mixed_sample_rate.load(Ordering::Relaxed);
+        if rate == 0 {
+            return Some(0);
+        }
+        let samples = self.mixed_samples.load(Ordering::Relaxed);
+        Some(samples * 1000 / rate as u64)
+    }
+
     // Memory management
     pub fn get_buffer_pool(&self) -> AudioBufferPool {
         self.buffer_pool.clone()
@@ -377,6 +412,7 @@ impl RecordingState {
         *self.recording_start.lock().unwrap() = None;
         *self.pause_start.lock().unwrap() = None;
         *self.total_pause_duration.lock().unwrap() = std::time::Duration::ZERO;
+        self.reset_recording_clock();
         self.error_count.store(0, Ordering::SeqCst);
         self.recoverable_error_count.store(0, Ordering::SeqCst);
 
@@ -402,7 +438,54 @@ impl Default for RecordingState {
             recording_start: Mutex::new(None),
             pause_start: Mutex::new(None),
             total_pause_duration: Mutex::new(std::time::Duration::ZERO),
+            mixed_samples: AtomicU64::new(0),
+            mixed_sample_rate: AtomicU32::new(0),
         }
+    }
+}
+
+#[cfg(test)]
+mod recording_clock_tests {
+    use super::*;
+
+    #[test]
+    fn offset_is_none_when_not_recording() {
+        let state = RecordingState::new();
+        state.record_mixed_samples(48_000, 48_000);
+        assert_eq!(state.get_recording_offset_ms(), None);
+    }
+
+    #[test]
+    fn offset_counts_mixed_samples() {
+        let state = RecordingState::new();
+        state.start_recording().unwrap();
+        assert_eq!(state.get_recording_offset_ms(), Some(0));
+        state.record_mixed_samples(48_000, 48_000);
+        state.record_mixed_samples(2_400, 48_000);
+        assert_eq!(state.get_recording_offset_ms(), Some(1_050));
+    }
+
+    #[test]
+    fn offset_does_not_advance_while_paused() {
+        let state = RecordingState::new();
+        state.start_recording().unwrap();
+        state.record_mixed_samples(48_000, 48_000);
+        state.pause_recording().unwrap();
+        // Paused chunks are discarded before the pipeline, so nothing is recorded here.
+        assert_eq!(state.get_recording_offset_ms(), Some(1_000));
+        state.resume_recording().unwrap();
+        state.record_mixed_samples(24_000, 48_000);
+        assert_eq!(state.get_recording_offset_ms(), Some(1_500));
+    }
+
+    #[test]
+    fn new_recording_resets_the_clock() {
+        let state = RecordingState::new();
+        state.start_recording().unwrap();
+        state.record_mixed_samples(48_000, 48_000);
+        state.stop_recording();
+        state.start_recording().unwrap();
+        assert_eq!(state.get_recording_offset_ms(), Some(0));
     }
 }
 

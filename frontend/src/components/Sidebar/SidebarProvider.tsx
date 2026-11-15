@@ -6,6 +6,7 @@ import Analytics from '@/lib/analytics';
 import { invoke } from '@tauri-apps/api/core';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import type { SummaryProcessResponse } from '@/types';
+import { meetingNotesService } from '@/services/meetingNotesService';
 
 
 
@@ -27,6 +28,8 @@ interface TranscriptSearchResult {
   title: string;
   matchContext: string;
   timestamp: string;
+  /** Where the match is: the user's notes or the transcript. */
+  source: 'notes' | 'transcript';
 }
 
 interface SummaryPoll {
@@ -49,6 +52,8 @@ interface SidebarContextType {
   searchTranscripts: (query: string) => Promise<void>;
   searchResults: TranscriptSearchResult[];
   isSearching: boolean;
+  /** Meetings that have notes, for the mark in the meeting list. */
+  meetingIdsWithNotes: Set<string>;
   setServerAddress: (address: string) => void;
   serverAddress: string;
   transcriptServerAddress: string;
@@ -81,7 +86,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [meetings, setMeetings] = useState<CurrentMeeting[]>([]);
   const [sidebarItems, setSidebarItems] = useState<SidebarItem[]>([]);
   const [isMeetingActive, setIsMeetingActive] = useState(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<TranscriptSearchResult[]>([]);
+  const [meetingIdsWithNotes, setMeetingIdsWithNotes] = useState<Set<string>>(() => new Set());
   const [isSearching, setIsSearching] = useState(false);
   const [serverAddress, setServerAddress] = useState('');
   const [transcriptServerAddress, setTranscriptServerAddress] = useState('');
@@ -104,6 +110,11 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
         }));
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
+        // The notes mark is optional: a failure here must not empty the meeting list.
+        meetingNotesService
+          .listMeetingsWithNotes()
+          .then((ids) => setMeetingIdsWithNotes(new Set(ids)))
+          .catch((error) => console.warn('Could not load which meetings have notes:', error));
       } catch (error) {
         console.error('Error fetching meetings:', error);
         setMeetings([]);
@@ -185,7 +196,23 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       setIsSearching(true);
 
 
-      const results = await invoke('api_search_transcripts', { query }) as TranscriptSearchResult[];
+      // Notes first: they are the user's own words. One result per meeting.
+      const [noteHits, transcriptHits] = await Promise.all([
+        meetingNotesService.searchMeetingNotes(query).catch((error) => {
+          console.warn('Error searching notes:', error);
+          return [];
+        }),
+        invoke('api_search_transcripts', { query }) as Promise<Omit<TranscriptSearchResult, 'source'>[]>,
+      ]);
+      const seen = new Set<string>();
+      const results: TranscriptSearchResult[] = [];
+      for (const [hits, source] of [[noteHits, 'notes'], [transcriptHits, 'transcript']] as const) {
+        for (const hit of hits) {
+          if (seen.has(hit.id)) continue;
+          seen.add(hit.id);
+          results.push({ ...hit, source });
+        }
+      }
       setSearchResults(results);
     } catch (error) {
       console.error('Error searching transcripts:', error);
@@ -309,6 +336,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
       searchTranscripts,
       searchResults,
       isSearching,
+      meetingIdsWithNotes,
       setServerAddress,
       serverAddress,
       transcriptServerAddress,

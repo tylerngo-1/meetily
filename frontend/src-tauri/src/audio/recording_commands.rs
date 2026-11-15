@@ -1219,6 +1219,17 @@ pub async fn get_recording_state() -> serde_json::Value {
     }
 }
 
+/// Current position in the recording, in milliseconds, on the clock shared by the saved
+/// audio file and transcript `audio_start_time`. Pauses are excluded. `None` when idle.
+/// Used to anchor notes and bookmarks taken during a recording.
+#[tauri::command]
+pub async fn api_get_recording_offset() -> Option<u64> {
+    let manager_guard = RECORDING_MANAGER.lock().unwrap();
+    manager_guard
+        .as_ref()
+        .and_then(|manager| manager.get_state().get_recording_offset_ms())
+}
+
 /// Get the meeting folder path for the current recording
 /// Returns the path if a meeting name was set and folder structure initialized
 #[tauri::command]

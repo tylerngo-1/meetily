@@ -212,3 +212,14 @@
     overflow: visible !important;
   }
 }
+/* Live notes editor (components/LiveNotes/NotesEditor.tsx): a plain page, no side-menu gutter.
+   The time gutter is drawn by the component in the left padding. */
+.meetily-notes .bn-editor {
+  padding-inline: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.meetily-notes .bn-editor .bn-inline-content {
+  line-height: 1.6;
+}

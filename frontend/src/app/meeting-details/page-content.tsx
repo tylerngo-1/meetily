@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { MeetingSummary, SummaryProcessResponse } from '@/types';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
@@ -10,6 +10,10 @@ import { TranscriptPanel } from '@/components/MeetingDetails/TranscriptPanel';
 import { SummaryPanel } from '@/components/MeetingDetails/SummaryPanel';
 import { MeetingDetailsSplitView, type MeetingDetailsTab } from '@/components/MeetingDetails/MeetingDetailsSplitView';
 import { ModelConfig } from '@/components/ModelSettingsModal';
+import { NotesPanel } from '@/components/MeetingDetails/NotesPanel';
+import { useMeetingNotes } from '@/hooks/meeting-details/useMeetingNotes';
+import { resolveSegmentMarks, segmentsForRange, toAnchorSegments } from '@/lib/note-anchors';
+import { blockTimeRange, bookmarkAnchors, type BlockTime } from '@/lib/notes-document';
 
 // Custom hooks
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
@@ -24,6 +28,7 @@ export default function PageContent({
   summaryData,
   initialSummary,
   shouldAutoGenerate = false,
+  openedFromRecording = false,
   onAutoGenerateComplete,
   onMeetingUpdated,
   onRefetchTranscripts,
@@ -39,6 +44,8 @@ export default function PageContent({
   summaryData: MeetingSummary | null;
   initialSummary: SummaryProcessResponse | null;
   shouldAutoGenerate?: boolean;
+  /** Just saved from a recording: open the notes the user wrote, if any. */
+  openedFromRecording?: boolean;
   onAutoGenerateComplete?: () => void;
   onMeetingUpdated?: () => Promise<void>;
   onRefetchTranscripts?: () => Promise<void>;
@@ -60,6 +67,9 @@ export default function PageContent({
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const isRecording = false;
   const [activeTab, setActiveTab] = useState<MeetingDetailsTab>('transcript');
+  const [summaryBadge, setSummaryBadge] = useState(false);
+  const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number } | null>(null);
+  const notes = useMeetingNotes(meeting.id);
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);
@@ -75,7 +85,7 @@ export default function PageContent({
 
   // Custom hooks
   const meetingData = useMeetingData({ meeting, summaryData, onMeetingUpdated });
-  const templates = useTemplates();
+  const templates = useTemplates(meeting.id);
 
   // Callback to register the modal open function
   const handleRegisterModalOpen = (openFn: () => void) => {
@@ -146,16 +156,74 @@ export default function PageContent({
     Analytics.trackPageView('meeting_details');
   }, []);
 
+  // Right after a recording, the user's own notes come first.
+  useEffect(() => {
+    if (!openedFromRecording || notes.status !== 'ready' || !notes.hadNotes) return;
+    if (manuallySelectedTabMeetingIdsRef.current.has(meeting.id)) return;
+    manuallySelectedTabMeetingIdsRef.current.add(meeting.id);
+    setActiveTab('notes');
+  }, [openedFromRecording, notes.status, notes.hadNotes, meeting.id]);
+
+  // Wait for notes before choosing a tab after a recording, so the tab doesn't jump twice.
+  const waitingForNotesTab = openedFromRecording && notes.status === 'loading';
+
   useEffect(() => {
     if (
       (meetingData.aiSummary || summaryGeneration.summaryStatus === 'completed')
+      && !waitingForNotesTab
       && !autoSwitchedSummaryMeetingIdsRef.current.has(meeting.id)
       && !manuallySelectedTabMeetingIdsRef.current.has(meeting.id)
     ) {
       autoSwitchedSummaryMeetingIdsRef.current.add(meeting.id);
       setActiveTab('summary');
     }
-  }, [meeting.id, meetingData.aiSummary, summaryGeneration.summaryStatus]);
+  }, [meeting.id, meetingData.aiSummary, summaryGeneration.summaryStatus, waitingForNotesTab]);
+
+  // A summary that finishes while the user reads their notes gets a dot, not a tab switch.
+  const previousSummaryStatusRef = useRef(summaryGeneration.summaryStatus);
+  useEffect(() => {
+    const previous = previousSummaryStatusRef.current;
+    previousSummaryStatusRef.current = summaryGeneration.summaryStatus;
+    if (summaryGeneration.summaryStatus === 'completed' && previous !== 'completed' && activeTab === 'notes') {
+      setSummaryBadge(true);
+    }
+  }, [summaryGeneration.summaryStatus, activeTab]);
+  useEffect(() => {
+    if (activeTab === 'summary') setSummaryBadge(false);
+  }, [activeTab]);
+
+  const anchorSegments = useMemo(
+    () =>
+      toAnchorSegments(
+        (segments ?? meetingData.transcripts.map((t: any) => ({
+          id: t.id,
+          timestamp: t.audio_start_time ?? 0,
+          endTime: t.audio_end_time,
+          text: t.text,
+        }))) as { id: string; timestamp: number; endTime?: number; text?: string }[],
+      ),
+    [segments, meetingData.transcripts],
+  );
+  const segmentMarks = useMemo(
+    () => resolveSegmentMarks(bookmarkAnchors(notes.document), anchorSegments),
+    [notes.document, anchorSegments],
+  );
+
+  const handleJumpToTime = useCallback((time: BlockTime) => {
+    const [segment] = segmentsForRange(blockTimeRange(time), anchorSegments);
+    if (!segment) {
+      toast.info(
+        hasMore
+          ? "That part of the transcript isn't loaded yet"
+          : 'No transcript at this time',
+        { description: hasMore ? 'Scroll down in the transcript to load more, then try again.' : undefined },
+      );
+      return;
+    }
+    // Narrow window: one tab at a time, so show the transcript.
+    if (!window.matchMedia('(min-width: 768px)').matches) setActiveTab('transcript');
+    setFocusRequest({ segmentId: segment.id, nonce: Date.now() });
+  }, [anchorSegments, hasMore]);
 
   // Auto-generate only after the model configuration has settled.
   useEffect(() => {
@@ -163,6 +231,7 @@ export default function PageContent({
       !shouldAutoGenerate
       || summaryGeneration.summaryStatus !== 'idle'
       || isModelConfigLoading
+      || !templates.isTemplateLoaded
       || meetingData.transcripts.length === 0
       || autoGenerationStartedMeetingIdRef.current === meeting.id
     ) {
@@ -178,6 +247,7 @@ export default function PageContent({
     meeting.id,
     meetingData.transcripts.length,
     isModelConfigLoading,
+    templates.isTemplateLoaded,
     modelConfig.provider,
     modelConfig.model,
     summaryGeneration.handleGenerateSummary,
@@ -199,6 +269,17 @@ export default function PageContent({
             manuallySelectedTabMeetingIdsRef.current.add(meeting.id);
             setActiveTab(tab);
           }}
+          summaryBadge={summaryBadge}
+          notes={
+            <NotesPanel
+              status={notes.status}
+              initialDocument={notes.document}
+              initialMarkdown={notes.initialMarkdown}
+              hadNotes={notes.hadNotes}
+              onChange={notes.saveNotes}
+              onJumpToTime={handleJumpToTime}
+            />
+          }
           transcript={
             <TranscriptPanel
               transcripts={meetingData.transcripts}
@@ -218,6 +299,8 @@ export default function PageContent({
               meetingId={meeting.id}
               meetingFolderPath={meeting.folder_path}
               onRefetchTranscripts={onRefetchTranscripts}
+              segmentMarks={segmentMarks}
+              focusRequest={focusRequest}
             />
           }
           summary={

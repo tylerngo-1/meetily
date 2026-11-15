@@ -9,6 +9,7 @@ import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { indexedDBService, MeetingMetadata, StoredTranscript } from '@/services/indexedDBService';
 import { storageService } from '@/services/storageService';
+import { discardRecoveryDraft, restoreRecoveryDraft } from '@/services/meetingDraftSync';
 import { applyPinnedSummaryLanguageToMeeting } from '@/lib/summary-language-preferences';
 import { toast } from 'sonner';
 
@@ -193,11 +194,23 @@ export function useTranscriptRecovery(): UseTranscriptRecoveryReturn {
         });
       }
 
-      // 7. Mark as saved in IndexedDB
+      // 7. Restore prep and notes taken during the crashed recording (never fails recovery)
+      try {
+        const failedParts = await restoreRecoveryDraft(meetingId, savedMeetingId);
+        if (failedParts.length > 0) {
+          toast.warning('Some notes of the recovered meeting were not saved yet', {
+            description: 'Meetily will try again the next time it starts.',
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to restore notes of recovered meeting:', error);
+      }
+
+      // 8. Mark as saved in IndexedDB
       await indexedDBService.markMeetingSaved(meetingId);
 
 
-      // 8. Clean up checkpoint files
+      // 9. Clean up checkpoint files
       if (folderPath) {
         try {
           await invoke('cleanup_checkpoints', { meetingFolder: folderPath });
@@ -207,7 +220,7 @@ export function useTranscriptRecovery(): UseTranscriptRecoveryReturn {
         }
       }
 
-      // 9. Remove from recoverable list
+      // 10. Remove from recoverable list
       setRecoverableMeetings(prev => prev.filter(m => m.meetingId !== meetingId));
 
       return {
@@ -229,6 +242,11 @@ export function useTranscriptRecovery(): UseTranscriptRecoveryReturn {
   const deleteRecoverableMeeting = useCallback(async (meetingId: string): Promise<void> => {
     try {
       await indexedDBService.deleteMeeting(meetingId);
+      try {
+        await discardRecoveryDraft(meetingId);
+      } catch (error) {
+        console.warn('Failed to discard notes of deleted recoverable meeting:', error);
+      }
       setRecoverableMeetings(prev => prev.filter(m => m.meetingId !== meetingId));
     } catch (error) {
       console.error('Failed to delete meeting:', error);

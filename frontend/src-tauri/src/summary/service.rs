@@ -9,6 +9,7 @@ use crate::summary::processor::{
     language_name_from_code, require_visible_markdown,
 };
 use crate::summary::templates::{self, Template};
+use crate::summary::user_notes;
 use crate::ollama::metadata::ModelMetadataCache;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -501,9 +502,24 @@ impl SummaryService {
         };
         let template_fingerprint = template_cache_fingerprint(&template);
 
+        // The user's notes, bookmarks and prep. Folded into the cache key: editing notes must
+        // produce a new summary, and a meeting without notes keeps its old key.
+        let user_notes = user_notes::load_user_notes(&pool, &meeting_id).await;
+        let user_notes_block = user_notes::build_user_notes_block(&user_notes, token_threshold);
+        if !user_notes_block.is_empty() {
+            info!(
+                "Summary for {} includes user notes: {} bookmarks, {} participants, notes {} chars",
+                meeting_id,
+                user_notes.bookmarks.len(),
+                user_notes.participants.len(),
+                user_notes.notes_markdown.as_deref().map_or(0, |m| m.chars().count()),
+            );
+        }
+        let cache_prompt_key = format!("{custom_prompt}{user_notes_block}");
+
         let cache_source = build_summary_cache_source(
             &text,
-            &custom_prompt,
+            &cache_prompt_key,
             &template_id,
             &template_fingerprint,
             token_threshold,
@@ -551,6 +567,7 @@ impl SummaryService {
             &final_api_key,
             &text,
             &custom_prompt,
+            &user_notes_block,
             &template_id,
             &template,
             token_threshold,

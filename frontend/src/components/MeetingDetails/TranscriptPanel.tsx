@@ -5,6 +5,7 @@ import { TranscriptView } from '@/components/TranscriptView';
 import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptView';
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { useMemo } from 'react';
+import type { SegmentMark } from '@/lib/note-anchors';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -28,6 +29,10 @@ interface TranscriptPanelProps {
   meetingId?: string;
   meetingFolderPath?: string | null;
   onRefetchTranscripts?: () => Promise<void>;
+
+  // Notes: bookmarked segments, and scroll-to requests from a clicked note time
+  segmentMarks?: Map<string, { mark: SegmentMark }>;
+  focusRequest?: { segmentId: string; nonce: number } | null;
 }
 
 export function TranscriptPanel({
@@ -48,6 +53,8 @@ export function TranscriptPanel({
   meetingId,
   meetingFolderPath,
   onRefetchTranscripts,
+  segmentMarks,
+  focusRequest,
 }: TranscriptPanelProps) {
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
@@ -94,6 +101,8 @@ export function TranscriptPanel({
           totalCount={totalCount}
           loadedCount={loadedCount}
           onLoadMore={onLoadMore}
+          segmentMarks={segmentMarks}
+          focusRequest={focusRequest}
         />
       </div>
 

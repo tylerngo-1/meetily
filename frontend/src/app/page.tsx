@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { RecordingControls } from '@/components/RecordingControls';
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import { usePermissionCheck } from '@/hooks/usePermissionCheck';
@@ -20,11 +20,30 @@ import { TranscriptRecovery } from '@/components/TranscriptRecovery';
 import { indexedDBService } from '@/services/indexedDBService';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { LiveNotesPanel, type LiveNotesPhase } from '@/components/LiveNotes/LiveNotesPanel';
+import type { NotesEditorHandle } from '@/components/LiveNotes/NotesEditor';
+import { useLiveNotes } from '@/hooks/useLiveNotes';
+import { useResizableSplit } from '@/hooks/useResizableSplit';
+import { segmentsForRange } from '@/lib/note-anchors';
+import { blockTimeRange, type BlockTime } from '@/lib/notes-document';
+import { MeetingPrepPanel } from '@/components/MeetingPrep/MeetingPrepPanel';
+
+/** How long a bookmark waits for the notes editor to load after opening the pane. */
+const BOOKMARK_EDITOR_WAIT_MS = 5_000;
+
+const NOTES_OPEN_KEY = 'meetily.recording.notesOpen';
+
+function readNotesOpen(): boolean {
+  try {
+    return localStorage.getItem(NOTES_OPEN_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
 
 export default function Home() {
   // Local page state (not moved to contexts)
   const [isRecording, setIsRecordingState] = useState(false);
-  const [barHeights, setBarHeights] = useState(['58%', '76%', '58%']);
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 
   // Use contexts for state management
@@ -60,6 +79,129 @@ export default function Home() {
   } = useTranscriptRecovery();
 
   const router = useRouter();
+
+  // Live notes (docs/plans/meeting-prep-and-live-notes.md, section 6)
+  const liveNotes = useLiveNotes();
+  const notesEditorRef = useRef<NotesEditorHandle | null>(null);
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number } | null>(null);
+  const split = useResizableSplit({
+    storageKey: 'meetily.recording.transcriptPaneRatio',
+    defaultRatio: 0.6,
+    minRatio: 0.45,
+    maxRatio: 0.75,
+    label: 'Resize transcript and notes',
+    firstPaneName: 'Transcript',
+  });
+  // Notes stay on screen after Stop until the meeting page opens, so the last thought can be
+  // finished and nothing seems to vanish. Editable until saving starts (the draft is flushed then).
+  const notesPhase: LiveNotesPhase | null =
+    recordingState.isRecording ? 'recording'
+    : status === RecordingStatus.STOPPING || status === RecordingStatus.PROCESSING_TRANSCRIPTS ? 'finishing'
+    : status === RecordingStatus.SAVING ? 'saving'
+    : status === RecordingStatus.COMPLETED ? 'saved'
+    : null;
+  const showNotes = notesPhase !== null && notesOpen;
+
+  // One editor per recording. Not keyed by the draft: the draft is reset while saving, and the
+  // notes must stay on screen until the meeting page opens.
+  const [notesSession, setNotesSession] = useState(0);
+  const wasRecordingRef = useRef(false);
+  useEffect(() => {
+    if (recordingState.isRecording && !wasRecordingRef.current) setNotesSession((n) => n + 1);
+    wasRecordingRef.current = recordingState.isRecording;
+  }, [recordingState.isRecording]);
+
+  // Save the last keystrokes into the draft before it is written to the meeting.
+  useEffect(() => {
+    if (status === RecordingStatus.SAVING) void notesEditorRef.current?.flush();
+  }, [status]);
+  const isSplit = showNotes && split.isDesktop;
+
+  useEffect(() => setNotesOpen(readNotesOpen()), []);
+
+  const toggleNotes = useCallback(() => {
+    setNotesOpen((open) => {
+      try {
+        localStorage.setItem(NOTES_OPEN_KEY, String(!open));
+      } catch {
+        // Remembering the pane state is optional.
+      }
+      return !open;
+    });
+  }, []);
+
+  const handleBookmark = useCallback(async () => {
+    if (!recordingState.isRecording) return;
+    Analytics.trackButtonClick('bookmark', 'recording_controls');
+    // Take the time now, before any waiting: the bookmark is for what was just said.
+    const atMs = await liveNotes.getOffsetMs();
+    const quote = liveNotes.quoteForBookmark(atMs);
+    const insert = () => {
+      if (!notesEditorRef.current) return false;
+      notesEditorRef.current.insertBookmark(atMs, quote);
+      return true;
+    };
+    if (insert()) return;
+
+    // The pane is hidden: open it so the bookmark is visible, then insert once the editor is up.
+    if (!notesOpen) toggleNotes();
+    const deadline = Date.now() + BOOKMARK_EDITOR_WAIT_MS;
+    const retry = () => {
+      if (insert()) return;
+      if (Date.now() > deadline) {
+        toast.error("Couldn't add the bookmark", { description: 'The notes editor did not load. Try again.' });
+        return;
+      }
+      setTimeout(retry, 100);
+    };
+    setTimeout(retry, 100);
+  }, [recordingState.isRecording, liveNotes, notesOpen, toggleNotes]);
+
+  const handleJumpToTime = useCallback((time: BlockTime) => {
+    const [segment] = segmentsForRange(blockTimeRange(time), liveNotes.anchorSegments);
+    if (!segment) {
+      toast.info('No transcript at that time yet');
+      return;
+    }
+    if (!split.isDesktop) setNotesOpen(false); // single pane: show the transcript
+    setFocusRequest({ segmentId: segment.id, nonce: Date.now() });
+  }, [liveNotes.anchorSegments, split.isDesktop]);
+
+  // ⌘B / Ctrl+B bookmarks, ⌘J / Ctrl+J toggles the notes pane, while recording.
+  useEffect(() => {
+    if (!recordingState.isRecording) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.repeat) return;
+      if (e.code === 'KeyB') {
+        // Capture phase + stopPropagation: inside the notes editor ⌘B would otherwise also toggle bold.
+        e.preventDefault();
+        e.stopPropagation();
+        void handleBookmark();
+      } else if (e.code === 'KeyJ') {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleNotes();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [recordingState.isRecording, handleBookmark, toggleNotes]);
+
+  // ⌘R / Ctrl+R starts recording from home, even from inside a prep field. Same path as the
+  // sidebar's record button.
+  useEffect(() => {
+    if (recordingState.isRecording || notesPhase !== null || isRecordingDisabled) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.repeat || e.code !== 'KeyR') return;
+      e.preventDefault();
+      e.stopPropagation();
+      Analytics.trackButtonClick('start_recording', 'shortcut');
+      window.dispatchEvent(new CustomEvent('start-recording-from-sidebar'));
+    };
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [recordingState.isRecording, notesPhase, isRecordingDisabled]);
 
   useEffect(() => {
     // Track page view
@@ -169,22 +311,6 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    if (recordingState.isRecording) {
-      const interval = setInterval(() => {
-        setBarHeights(prev => {
-          const newHeights = [...prev];
-          newHeights[0] = Math.random() * 20 + 10 + 'px';
-          newHeights[1] = Math.random() * 20 + 10 + 'px';
-          newHeights[2] = Math.random() * 20 + 10 + 'px';
-          return newHeights;
-        });
-      }, 300);
-
-      return () => clearInterval(interval);
-    }
-  }, [recordingState.isRecording]);
-
   // Computed values using global status
   const isProcessingStop = status === RecordingStatus.PROCESSING_TRANSCRIPTS || isProcessing;
 
@@ -207,41 +333,90 @@ export default function Home() {
         onLoadPreview={loadMeetingTranscripts}
       />
       <div className="flex flex-1 overflow-hidden">
-        <TranscriptPanel
-          isProcessingStop={isProcessingStop}
-          isStopping={isStopping}
-          showModal={showModal}
-        />
+        <div
+          ref={split.containerRef}
+          className="flex min-w-0 flex-1"
+          style={{ '--transcript-pane-width': `${split.ratio * 100}%` } as CSSProperties}
+          {...(isSplit ? split.containerHandlers : {})}
+        >
+          <div
+            className={
+              isSplit ? 'flex min-w-0 flex-none w-[var(--transcript-pane-width)]'
+              : showNotes ? 'hidden'
+              : 'flex min-w-0 flex-1'
+            }
+          >
+            <TranscriptPanel
+              isProcessingStop={isProcessingStop}
+              isStopping={isStopping}
+              showModal={showModal}
+              isSplit={isSplit}
+              notesOpen={showNotes}
+              onToggleNotes={toggleNotes}
+              segmentMarks={liveNotes.segmentMarks}
+              focusRequest={focusRequest}
+              idleContent={hasMicrophone || isRecording ? <MeetingPrepPanel /> : undefined}
+            />
+          </div>
+          {isSplit && (
+            <div
+              {...split.separatorProps}
+              className="group relative z-10 flex w-2 flex-shrink-0 cursor-col-resize items-stretch justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+            >
+              <div className="h-full w-px bg-gray-200 transition-[width,background-color] duration-150 ease-out group-hover:w-1 group-hover:bg-blue-400 group-active:w-1 group-active:bg-blue-500" />
+            </div>
+          )}
+          {showNotes && (
+            <div className={`flex min-w-0 flex-1 flex-col ${isSplit ? '' : 'pb-32'}`}>
+              <LiveNotesPanel
+                // A new recording gets a fresh editor; the editor is uncontrolled.
+                key={notesSession}
+                phase={notesPhase ?? 'saved'}
+                editorRef={notesEditorRef}
+                initialDocument={liveNotes.notes}
+                onChange={liveNotes.saveNotes}
+                onJumpToTime={handleJumpToTime}
+                onClose={toggleNotes}
+              />
+            </div>
+          )}
+        </div>
 
         {/* Recording controls - only show when permissions are granted or already recording and not showing status messages */}
         {(hasMicrophone || isRecording) &&
           status !== RecordingStatus.PROCESSING_TRANSCRIPTS &&
           status !== RecordingStatus.SAVING && (
-            <div className="fixed bottom-12 left-0 right-0 z-10">
+            <div
+              className="fixed bottom-12 left-0 z-10 transition-[right] duration-300"
+              style={{
+                // Centered under the transcript; the notes pane keeps its own composer clear.
+                right: isSplit
+                  ? `calc((100vw - ${sidebarCollapsed ? '4rem' : '16rem'}) * ${1 - split.ratio})`
+                  : 0,
+              }}
+            >
               <div
                 className="flex justify-center pl-8 transition-[margin] duration-300"
                 style={{
                   marginLeft: sidebarCollapsed ? '4rem' : '16rem'
                 }}
               >
-                <div className="w-2/3 max-w-[750px] flex justify-center">
-                  <div className="bg-white rounded-full shadow-lg flex items-center">
-                    <RecordingControls
-                      isRecording={recordingState.isRecording}
-                      onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}
-                      onRecordingStart={handleRecordingStart}
-                      onTranscriptReceived={() => { }} // Not actually used by RecordingControls
-                      onStopInitiated={() => setIsStopping(true)}
-                      barHeights={barHeights}
-                      onTranscriptionError={(message) => {
-                        showModal('errorAlert', message);
-                      }}
-                      isRecordingDisabled={isRecordingDisabled}
-                      isParentProcessing={isProcessingStop}
-                      selectedDevices={selectedDevices}
-                      meetingName={meetingTitle}
-                    />
-                  </div>
+                <div className={`${isSplit ? 'w-full px-4' : 'w-2/3'} max-w-[750px] flex justify-center`}>
+                  <RecordingControls
+                    isRecording={recordingState.isRecording}
+                    onRecordingStop={(callApi = true) => handleRecordingStop(callApi)}
+                    onRecordingStart={handleRecordingStart}
+                    onTranscriptReceived={() => { }} // Not actually used by RecordingControls
+                    onStopInitiated={() => setIsStopping(true)}
+                    onTranscriptionError={(message) => {
+                      showModal('errorAlert', message);
+                    }}
+                    isRecordingDisabled={isRecordingDisabled}
+                    isParentProcessing={isProcessingStop}
+                    selectedDevices={selectedDevices}
+                    meetingName={meetingTitle}
+                    onBookmark={() => void handleBookmark()}
+                  />
                 </div>
               </div>
             </div>

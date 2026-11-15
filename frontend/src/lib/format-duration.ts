@@ -10,3 +10,14 @@ export function formatDuration(totalSeconds: number): string {
   const ss = String(seconds).padStart(2, '0');
   return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
 }
+
+/**
+ * Format a transcript timestamp as M:SS, or H:MM:SS from one hour up (6:42, 1:02:03).
+ */
+export function formatTimestamp(totalSeconds: number): string {
+  const safe = Number.isFinite(totalSeconds) && totalSeconds > 0 ? Math.floor(totalSeconds) : 0;
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const ss = String(safe % 60).padStart(2, '0');
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${ss}` : `${minutes}:${ss}`;
+}
