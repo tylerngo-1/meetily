@@ -368,6 +368,8 @@ pub(crate) async fn generate_meeting_summary(
     api_key: &str,
     text: &str,
     custom_prompt: &str,
+    // The user's notes, bookmarks and prep (`user_notes::build_user_notes_block`); "" if none.
+    user_notes_block: &str,
     template_id: &str,
     template: &Template,
     token_threshold: usize,
@@ -502,6 +504,7 @@ pub(crate) async fn generate_meeting_summary(
                 final_user_prompt.push_str(custom_prompt);
                 final_user_prompt.push_str("\n</user_context>");
             }
+            final_user_prompt.push_str(user_notes_block);
             let completion = generate_summary(
                 client, provider, model_name, api_key, &final_system_prompt, &final_user_prompt,
                 ollama_endpoint, custom_openai_endpoint, max_tokens, temperature, top_p,
